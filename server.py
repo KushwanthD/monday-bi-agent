@@ -207,4 +207,5 @@ def run_server(port=3000):
     httpd.serve_forever()
 
 if __name__ == "__main__":
-    run_server()
+    port = int(os.environ.get("PORT", 3000))
+    run_server(port)
