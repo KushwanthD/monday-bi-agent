@@ -35,6 +35,11 @@ class BIAgentHandler(BaseHTTPRequestHandler):
             self.send_header(h_key, h_val)
         self.send_header("Content-Type", content_type)
         self.end_headers()
+    
+    def do_HEAD(self):
+        self._set_security_headers(200, "text/html")
+
+
 
     def do_GET(self):
         client_ip = self.client_address[0]
