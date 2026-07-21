@@ -1,0 +1,47 @@
+# ─── Sensitive Config (NEVER commit these) ────────────────────────
+config.json
+
+# ─── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# ─── Virtual Environments ─────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Node / npm (package-lock if not needed) ──────────────────────
+node_modules/
+npm-debug.log*
+
+# ─── OS Files ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── IDE / Editor ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Environment variables ────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── Sample / test data (optional — remove if you want to include) ─
+# sample_data/

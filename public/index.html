@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skylark Drones — Monday.com Business Intelligence Agent</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- AEGIS Cyberpunk Glassmorphic Authentication Portal -->
+  <div id="login-modal" class="login-modal-overlay">
+    <div class="login-box glass-panel">
+      <div class="login-brand">
+        <div class="logo-icon-large">
+          <svg class="drone-svg-logo" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="24" y="24" width="16" height="16" rx="4" fill="url(#drone-grad-login)" stroke="#06b6d4" stroke-width="2"/>
+            <circle cx="32" cy="32" r="4" fill="#06b6d4"/>
+            <line x1="24" y1="24" x2="12" y2="12" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="40" y1="24" x2="52" y2="12" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="24" y1="40" x2="12" y2="52" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="40" y1="40" x2="52" y2="52" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="52" cy="12" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="12" cy="52" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="52" cy="52" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <line x1="7" y1="12" x2="17" y2="12" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="47" y1="12" x2="57" y2="12" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="7" y1="52" x2="17" y2="52" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="47" y1="52" x2="57" y2="52" stroke="#ffffff" stroke-width="1.5"/>
+            <defs>
+              <linearGradient id="drone-grad-login" x1="24" y1="24" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#161c2d"/>
+                <stop offset="1" stop-color="#06b6d4"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2>Skylark Drones BI Portal</h2>
+        <p class="login-subtitle">Secure Executive Access & Monday.com Intelligence</p>
+      </div>
+
+      <form id="login-form">
+        <div id="login-error-alert" class="login-error-alert" style="display:none;">
+          <span id="login-error-text">❌ Invalid Username or Password</span>
+        </div>
+
+        <div class="input-group">
+          <label for="login-username">👤 Username</label>
+          <input type="text" id="login-username" placeholder="Enter Username..." required autocomplete="off">
+        </div>
+
+        <div class="input-group">
+          <label for="login-password">🔒 Password</label>
+          <input type="password" id="login-password" placeholder="Enter Password..." required autocomplete="off">
+        </div>
+
+        <button type="submit" id="btn-login-submit" class="btn-login">
+          <span>🔐 Authenticate & Launch Console</span>
+        </button>
+      </form>
+
+      <!-- AEGIS Cyberpunk Scanning Loading Screen -->
+      <div id="login-loading" class="login-loading-container" style="display:none;">
+        <div class="cyber-spinner"></div>
+        <p id="loading-status-text" class="loading-status-text">🔐 Hashing Password via Client SHA-256...</p>
+      </div>
+
+      <div class="login-credentials-badge">
+        💡 <strong>Demo Credentials:</strong> Username: <code>Skylark</code> | Password: <code>Drones</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg class="drone-svg-logo" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="24" y="24" width="16" height="16" rx="4" fill="url(#drone-grad)" stroke="#06b6d4" stroke-width="2"/>
+            <circle cx="32" cy="32" r="4" fill="#06b6d4"/>
+            <line x1="24" y1="24" x2="12" y2="12" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="40" y1="24" x2="52" y2="12" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="24" y1="40" x2="12" y2="52" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <line x1="40" y1="40" x2="52" y2="52" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="52" cy="12" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="12" cy="52" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <circle cx="52" cy="52" r="7" stroke="#06b6d4" stroke-width="2" fill="rgba(6,182,212,0.2)"/>
+            <line x1="7" y1="12" x2="17" y2="12" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="47" y1="12" x2="57" y2="12" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="7" y1="52" x2="17" y2="52" stroke="#ffffff" stroke-width="1.5"/>
+            <line x1="47" y1="52" x2="57" y2="52" stroke="#ffffff" stroke-width="1.5"/>
+            <defs>
+              <linearGradient id="drone-grad" x1="24" y1="24" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#161c2d"/>
+                <stop offset="1" stop-color="#06b6d4"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h2>Skylark Drones</h2>
+          <span class="sub-brand">Monday BI Intelligence Agent</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-btn active" id="btn-nav-chat" data-view="view-chat">
+          <span class="icon">💬</span> Executive Chat BI
+        </button>
+        <button class="nav-btn" id="btn-nav-boards" data-view="view-boards">
+          <span class="icon">📊</span> Monday.com Boards
+        </button>
+        <button class="nav-btn" id="btn-nav-briefing" data-view="view-briefing">
+          <span class="icon">📋</span> Leadership Briefing
+        </button>
+        <button class="nav-btn" id="btn-nav-security" data-view="view-security">
+          <span class="icon">🛡️</span> Security & Audit WAF
+        </button>
+        <button class="nav-btn" id="btn-nav-features" data-view="view-features">
+          <span class="icon">ℹ️</span> System Architecture & Features
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-indicator">
+          <span class="status-dot green"></span>
+          <span id="status-title">Monday.com Connected</span>
+        </div>
+        <span id="status-desc" class="status-sub">Live GraphQL API v2</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Workspace -->
+    <main class="main-content">
+      
+      <!-- Top Header -->
+      <header class="top-header">
+        <div>
+          <h1 id="page-title">Executive Business Intelligence Console</h1>
+          <p class="header-subtitle" id="page-subtitle">Real-time cross-board analytics for Work Orders & Sales Pipeline</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-primary" id="btn-generate-leadership">
+            <span>⚡</span> Leadership Update
+          </button>
+          <button class="btn-secondary btn-logout-header" id="btn-header-logout" title="Logout Session">
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW 1: EXECUTIVE CHAT BI -->
+      <div class="view-panel active" id="view-chat">
+        <section class="kpi-grid">
+          <div class="kpi-card clickable" id="kpi-card-pipeline" data-filter="all-deals">
+            <div class="kpi-label">Total Tracked Pipeline 🔗</div>
+            <div class="kpi-value" id="kpi-pipeline">₹2.29B</div>
+            <div class="kpi-subtext">Across 325 deals • <em>Click to view all deals ➔</em></div>
+          </div>
+
+          <div class="kpi-card highlight-green clickable" id="kpi-card-won" data-filter="won-deals">
+            <div class="kpi-label">Closed Won Revenue 🔗</div>
+            <div class="kpi-value" id="kpi-won">₹86.18M</div>
+            <div class="kpi-subtext">147 Contracted Deals • <em>Click to view won deals ➔</em></div>
+          </div>
+
+          <div class="kpi-card highlight-blue clickable" id="kpi-card-negotiation" data-filter="negotiation-deals">
+            <div class="kpi-label">Active Negotiations 🔗</div>
+            <div class="kpi-value" id="kpi-negotiation">₹448.2M</div>
+            <div class="kpi-subtext">Proposal & Negotiation • <em>Click to view active deals ➔</em></div>
+          </div>
+
+          <div class="kpi-card highlight-amber clickable" id="kpi-card-flights" data-filter="work-orders">
+            <div class="kpi-label">Flight Operations 🔗</div>
+            <div class="kpi-value" id="kpi-flights">175 Work Orders</div>
+            <div class="kpi-subtext">Work Orders Tracker • <em>Click to view work orders ➔</em></div>
+          </div>
+        </section>
+
+        <!-- Chat Console & Caveats Grid -->
+        <div class="chat-dashboard-grid">
+          <section class="chat-card glass-panel">
+            <div class="chat-header">
+              <div class="agent-avatar">🤖</div>
+              <div>
+                <h3>Skylark AI Intelligence Assistant</h3>
+                <span class="badge badge-success">Online • Ready to Query</span>
+              </div>
+            </div>
+
+            <div class="chat-box" id="chat-box">
+              <div class="message agent-message">
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-content">
+                  Hello! I am your <strong>Skylark Drones Business Intelligence Agent</strong>. I have indexed your live Monday.com Deals Funnel & Work Orders boards.<br><br>
+                  Ask me anything about revenue, client codes (e.g., <code>COMPANY089</code>), flight operations, or security logs.
+                </div>
+              </div>
+            </div>
+
+            <div class="suggestion-chips">
+              <button class="chip" data-prompt="What is our total closed-won revenue and pipeline value?">💰 Revenue Summary</button>
+              <button class="chip" data-prompt="Summarize the Energy sector pipeline and work order progress.">⚡ Energy Sector</button>
+              <button class="chip" data-prompt="Show me details for client COMPANY089.">🏢 Client COMPANY089</button>
+              <button class="chip" data-prompt="Are there any security audit logs or blocked prompt injections?">🛡️ WAF Audit Logs</button>
+            </div>
+
+            <form id="chat-form" class="chat-input-form">
+              <input type="text" id="chat-input" placeholder="Type your query (e.g. Show deals for Mining sector)..." required autocomplete="off">
+              <button type="submit" class="btn-send">
+                <span>Send Query</span>
+              </button>
+            </form>
+          </section>
+
+          <aside class="caveats-card glass-panel">
+            <h3>🛡️ Data Resilience Audit</h3>
+            <p class="caveats-intro">Real-time normalization & sanitization log:</p>
+            <ul class="caveats-list" id="caveats-list">
+              <li>✅ All data validated with 100% field integrity.</li>
+            </ul>
+          </aside>
+        </div>
+      </div>
+
+      <!-- VIEW 2: MONDAY.COM BOARDS LIVE VIEWER -->
+      <div class="view-panel" id="view-boards">
+        <!-- Multi-Criteria Table Filter Toolbar -->
+        <section class="glass-panel filter-toolbar">
+          <div class="filter-group">
+            <label for="filter-search">🔍 Search</label>
+            <input type="text" id="filter-search" placeholder="Search by deal, client, or owner..." class="filter-input">
+          </div>
+          <div class="filter-group">
+            <label for="filter-sector">🏢 Sector</label>
+            <select id="filter-sector" class="filter-select">
+              <option value="ALL">All Sectors</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-status">📌 Status</label>
+            <select id="filter-status" class="filter-select">
+              <option value="ALL">All Statuses</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-stage">🎯 Stage</label>
+            <select id="filter-stage" class="filter-select">
+              <option value="ALL">All Deal Stages</option>
+            </select>
+          </div>
+          <div class="filter-group reset-btn-group">
+            <button id="btn-reset-table-filters" class="btn-secondary btn-reset-toolbar">
+              🔄 Reset Filters
+            </button>
+          </div>
+        </section>
+
+        <!-- Live Table View Section -->
+        <section class="glass-panel">
+          <div class="table-header-controls">
+            <div>
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <h3 id="table-view-title">📊 Board:</h3>
+                <select id="board-select" class="filter-select" style="min-width: 220px; font-weight:600; color: #38bdf8; background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.4);">
+                </select>
+                <a href="https://kushwanth91782s-team.monday.com" target="_blank" class="btn-sm btn-monday-link" id="link-open-monday">
+                  ↗️ Open Board in Monday.com
+                </a>
+              </div>
+              <div id="filter-indicator" class="filter-indicator" style="display:none; margin-top: 6px;">
+                <span class="badge badge-cyan" id="filter-text">🎯 Filtered View</span>
+                <button class="btn-sm" id="btn-clear-filter">✕ Reset Filter</button>
+              </div>
+            </div>
+            <div class="tab-buttons" id="dynamic-board-tabs">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr id="table-head">
+                  <th>Deal Name</th>
+                  <th>Client Code</th>
+                  <th>Sector / Service</th>
+                  <th>Deal Stage</th>
+                  <th>Deal Status</th>
+                  <th>Deal Value (₹)</th>
+                  <th>Owner Code</th>
+                </tr>
+              </thead>
+              <tbody id="table-body">
+                <tr>
+                  <td colspan="7" style="text-align:center; padding: 30px;">Loading Live Monday.com Data...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- VIEW 3: LEADERSHIP BRIEFING -->
+      <div class="view-panel" id="view-briefing">
+        <section class="glass-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+            <h3>📋 Executive Leadership Briefing</h3>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-secondary" id="btn-refresh-briefing">🔄 Regenerate Update</button>
+              <button class="btn-primary" id="btn-copy-view-briefing">📋 Copy Markdown</button>
+            </div>
+          </div>
+          <div class="briefing-box" id="view-briefing-content">
+            ⚡ Generating Executive Leadership Update...
+          </div>
+        </section>
+      </div>
+
+      <!-- VIEW 4: SECURITY & WAF AUDIT LOGS -->
+      <div class="view-panel" id="view-security">
+        <section class="glass-panel">
+          <h3>🛡️ Cybersecurity & OWASP WAF Audit Logs</h3>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px;">
+            Tamper-evident SHA-256 audit trail recording authentication attempts, prompt injection detections, and system queries.
+          </p>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Event Type</th>
+                  <th>Audit Details</th>
+                  <th>SHA-256 Checksum</th>
+                </tr>
+              </thead>
+              <tbody id="audit-table-body">
+                <tr>
+                  <td colspan="4" style="text-align:center; padding: 25px;">Loading Security Audit Logs...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- VIEW 5: SYSTEM ARCHITECTURE & FEATURES -->
+      <div class="view-panel" id="view-features">
+        <section class="glass-panel">
+          <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 1.4rem; color: #f8fafc;">ℹ️ Skylark Drones BI Agent — System Guide & Architecture</h3>
+            <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 6px;">
+              Complete technical specification of capabilities, data pipelines, security guards, and analytics features.
+            </p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+            
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>🤖</span> Universal Executive BI Assistant
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                Interactively query live Deals Funnel and Work Orders datasets using natural language. Resolves complex entity searches (e.g. <code>COMPANY089</code>), sector totals, flight operations, and financial metrics in real time.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>📊</span> Dynamic Board & Group Discovery
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                Direct integration with Monday.com GraphQL API v2 (<code>limit: 500</code>). Dynamically discovers workspace boards and renders 1-to-1 authentic group tabs at the top for intuitive navigation.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>🎯</span> Compound Multi-Criteria Filter Engine
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                Scans 100% of dataset records to extract all unique Sectors, Statuses, and Deal Stages. Supports simultaneous compound intersecting (AND) logic across all toolbar controls.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>🔒</span> Client-Side SHA-256 Pre-Transmission Hashing
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                AEGIS security architecture computes a 256-bit SHA-256 hash using browser Web Crypto API before network transmission. Plaintext passwords are never sent over the wire.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>🛡️</span> OWASP WAF Security & Audit Logger
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                Filters malicious prompt injections, XSS attacks, and SQLi patterns. Features token-bucket IP rate limiting and tamper-evident SHA-256 cryptographic audit logs.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding: 24px; border-radius: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(6, 182, 212, 0.3);">
+              <h4 style="color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                <span>⚡</span> Sub-Second Caching & Real-Time Sync
+              </h4>
+              <p style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.6;">
+                15-second TTL in-memory caching engine delivers instant sub-second response times while continuous background polling keeps live Monday.com changes synced automatically.
+              </p>
+            </div>
+
+          </div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Leadership Update Modal -->
+  <div class="modal-overlay" id="briefing-modal">
+    <div class="modal-box glass-panel">
+      <div class="modal-header">
+        <h3>🚀 Executive Leadership Briefing</h3>
+        <button class="btn-close" id="btn-close-modal">✕</button>
+      </div>
+      <div class="briefing-content" id="briefing-content">
+        ⚡ Generating Executive Leadership Update...
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-print-briefing">🖨️ Print / Export PDF</button>
+        <button class="btn-primary" id="btn-copy-briefing">📋 Copy Markdown</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
