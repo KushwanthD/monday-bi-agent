@@ -1,9 +1,9 @@
 """
 Universal Omniscient Business Intelligence Engine
 Handles:
-- Exact numeric amount lookup (e.g. ₹1,83,130.20 or 183130.20)
-- Currency formatting stripping (rupee sign ₹, commas, spaces)
-- Multi-token code matching & exact value search
+- Universal string normalization: strips all currency symbols (₹, $, €, £), Indian formatting commas, special characters, and punctuation before searching.
+- Fuzzy multi-token string matching: understands queries regardless of syntax, word order, or symbols used.
+- Gemini AI fallback & offline deterministic analysis.
 """
 
 import os
@@ -17,6 +17,18 @@ class BIQueryEngine:
         self.resilience = data_resilience_engine
         self.security_guard = security_guard
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
+        
+        # Load config.json if present
+        config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    if cfg.get("gemini_api_key"):
+                        self.api_key = cfg["gemini_api_key"].strip()
+            except Exception:
+                pass
+
         self.client = None
         if self.api_key:
             try:
@@ -27,15 +39,21 @@ class BIQueryEngine:
     def set_security_guard(self, security_guard):
         self.security_guard = security_guard
 
+    def normalize_text(self, text: str) -> str:
+        """Strips currency symbols (₹, $, Rs), commas, and extra punctuation to compare raw clean strings."""
+        t = str(text).lower()
+        t = re.sub(r'[₹\$\€\£]', '', t)
+        t = t.replace('rs.', '').replace('rs', '').replace('inr', '')
+        t = t.replace(',', '')
+        return t.strip()
+
     def extract_exact_numbers(self, text: str) -> list:
-        """Extracts exact float values from queries containing currency symbols, commas, or rupee formatting like ₹1,83,130.20."""
-        # Find patterns like ₹1,83,130.20 or 1,83,130.20 or 183130.20
-        clean = text.replace('₹', '').replace('rs', '').replace('inr', '')
-        matches = re.findall(r'\b\d+(?:,\d+)*(?:\.\d+)?\b', clean)
+        clean = self.normalize_text(text)
+        matches = re.findall(r'\b\d+(?:\.\d+)?\b', clean)
         results = []
         for m in matches:
             try:
-                val = float(m.replace(',', ''))
+                val = float(m)
                 if val > 0:
                     results.append(val)
             except ValueError:
@@ -49,6 +67,7 @@ class BIQueryEngine:
 
         q_raw = user_query.strip()
         q_lower = q_raw.lower()
+        q_normalized = self.normalize_text(q_raw)
 
         # 📄 1. EXPORT CSV / PDF INTENT HANDLER
         is_export_csv = any(k in q_lower for k in ["export csv", "download csv", "generate csv", "csv report", "save csv"])
@@ -99,12 +118,13 @@ class BIQueryEngine:
 
                 system_instruction = (
                     "You are the official Skylark Drones Executive Business Intelligence AI Assistant.\n"
-                    "Analyze the user's question carefully against the provided JSON records.\n"
+                    "Analyze the user's question with extreme precision across all letters, symbols, numbers, and currency formats in the JSON records.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. EXACT AMOUNT LOOKUPS (e.g., '₹1,83,130.20' or '183130.20'): Normalize currency symbols and commas. Search for deals or work orders where value or cost equals or closely matches that number. List all matching records, including Project/Deal Name, Work Order ID/Client Code, Sector, Status, and exact amount.\n"
-                    "3. SYSTEM / SECURITY / GUIDE QUESTIONS: Answer comprehensively using system knowledge.\n"
-                    "4. Keep responses clean, precise, and professional."
+                    "2. ALWAYS NORMALIZE SYMBOLS AND NUMBERS: Understand currency signs (₹, $, Rs), commas, and spaces. For example, '₹1,83,130.20' equals '183130.20'. Match it to exact records.\n"
+                    "3. DEEP SEARCH ALL FIELDS: If the user asks about an entity, account code, deal name, project, serial number, or cost, search all fields and present complete matching details.\n"
+                    "4. If no items match, state that 0 records matched.\n"
+                    "5. Keep responses clean, precise, and professional."
                 )
 
                 prompt = f"Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
@@ -129,59 +149,46 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 4. EXACT CURRENCY AMOUNT SEARCH ENGINE (Fallback)
-        extracted_amounts = self.extract_exact_numbers(q_raw)
-        if extracted_amounts:
-            target_amount = extracted_amounts[0]
+        # 🧠 4. UNIVERSAL SYMBOL & NUMERIC MATCHING ENGINE (Offline Fallback)
+        extracted_numbers = self.extract_exact_numbers(q_raw)
+        
+        matching_orders = []
+        matching_deals = []
+
+        # A. If prompt contains a numerical amount (e.g. 183130.20 or ₹1,83,130.20)
+        if extracted_numbers:
+            target_num = extracted_numbers[0]
+            matching_orders = [o for o in cleaned_orders if abs(float(o.get("cost", 0)) - target_num) < 1.0 or target_num in self.extract_exact_numbers(json.dumps(o))]
+            matching_deals = [d for d in cleaned_deals if abs(float(d.get("value", 0)) - target_num) < 1.0 or target_num in self.extract_exact_numbers(json.dumps(d))]
+
+        # B. If prompt contains codes / words (e.g. WOCOMPANY_051, Sakura, etc.)
+        if not matching_orders and not matching_deals:
+            stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with", "want", "everyone", "anyone", "all", "this", "deal", "information"}
+            clean_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_normalized).split() if w not in stop_words and len(w) >= 2]
             
-            matching_orders = [o for o in cleaned_orders if abs(float(o.get("cost", 0)) - target_amount) < 1.0]
-            matching_deals = [d for d in cleaned_deals if abs(float(d.get("value", 0)) - target_amount) < 1.0]
+            if clean_tokens:
+                for o in cleaned_orders:
+                    rec_norm = self.normalize_text(json.dumps(o))
+                    if any(t in rec_norm for t in clean_tokens):
+                        matching_orders.append(o)
 
-            if matching_orders or matching_deals:
-                lines = [f"Record Lookup Results for Amount Rs. {target_amount:,.2f}:\n"]
-
-                if matching_orders:
-                    lines.append(f"Matching Work Orders ({len(matching_orders)} record):")
-                    for o in matching_orders:
-                        lines.append(f"  - Project Name: {o.get('project_name')} | Work Order ID: {o.get('work_order_id')} | Client Code: {o.get('client')} | Status: {o.get('status')} | Billed Amount: Rs. {o.get('cost', 0):,.2f}")
-
-                if matching_deals:
-                    lines.append(f"\nMatching Sales Deals ({len(matching_deals)} record):")
-                    for d in matching_deals:
-                        lines.append(f"  - Deal Name: {d.get('deal_name')} | Account/Client Code: {d.get('client')} | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Deal Value: Rs. {d.get('value', 0):,.2f}")
-
-                return {
-                    "answer": "\n".join(lines),
-                    "is_clarification": False,
-                    "caveats": all_caveats,
-                    "action": None
-                }
-
-        # 🧠 5. CODE / ENTITY SEARCH ENGINE (Fallback)
-        code_match = re.search(r'(wocompany_?\d+|company_?\d+|sdpldeal-?\d+|owner_?\d+|alias_\d+|[a-z0-9_-]{4,})', q_lower)
-        stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with", "want", "everyone", "anyone", "all", "this", "deal", "information"}
-        search_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_words and len(w) >= 3]
-
-        target_term = code_match.group(0) if code_match and code_match.group(0) not in stop_words else (search_tokens[0] if search_tokens else "")
-
-        matching_orders = [o for o in cleaned_orders if target_term and target_term in str(o).lower()]
-        matching_deals = [d for d in cleaned_deals if target_term and target_term in str(d).lower()]
-
-        total_billed = sum(o.get("cost", 0) for o in matching_orders)
-        total_val = sum(d.get("value", 0) for d in matching_deals)
+                for d in cleaned_deals:
+                    rec_norm = self.normalize_text(json.dumps(d))
+                    if any(t in rec_norm for t in clean_tokens):
+                        matching_deals.append(d)
 
         if matching_orders or matching_deals:
-            lines = [f"Records Found for '{target_term.upper()}':\n"]
+            lines = [f"Application Record Search Results for '{q_raw}':\n"]
 
             if matching_orders:
-                lines.append(f"Work Order Tracker Records ({len(matching_orders)} matching, Total Billed: Rs. {total_billed:,.2f}):")
-                for o in matching_orders:
-                    lines.append(f"  - Project: {o.get('project_name')} | Work Order ID: {o.get('work_order_id')} | Client: {o.get('client')} | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
+                lines.append(f"Matching Work Orders ({len(matching_orders)} record):")
+                for o in matching_orders[:15]:
+                    lines.append(f"  - Project: {o.get('project_name')} | Work Order ID: {o.get('work_order_id')} | Client Code: {o.get('client')} | Status: {o.get('status')} | Billed Amount: Rs. {o.get('cost', 0):,.2f}")
 
             if matching_deals:
-                lines.append(f"\nSales Deals Funnel Records ({len(matching_deals)} matching, Total Pipeline: Rs. {total_val:,.2f}):")
-                for d in matching_deals:
-                    lines.append(f"  - Deal: {d.get('deal_name')} | Client Code: {d.get('client')} | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
+                lines.append(f"\nMatching Sales Deals ({len(matching_deals)} record):")
+                for d in matching_deals[:15]:
+                    lines.append(f"  - Deal Name: {d.get('deal_name')} | Account/Client Code: {d.get('client')} | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Deal Value: Rs. {d.get('value', 0):,.2f}")
 
             return {
                 "answer": "\n".join(lines),
@@ -190,7 +197,7 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # ❓ 6. PROFESSIONAL OUT-OF-SCOPE FALLBACK
+        # ❓ 5. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
             "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
             "is_clarification": False,
