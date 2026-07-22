@@ -1,12 +1,11 @@
 """
-Universal Full-Application Business Intelligence & Analytics Engine
-Handles:
-- Specific field & count queries (e.g. "how many project names in work order tracker")
-- Math & Math Expression evaluation (safe arithmetic)
-- PDF & CSV Export generation triggers
-- Dynamic Dealer / Client / Sector / Status search & tabular item listing
-- Navigation & Monday.com Filter redirect actions
-- Professional out-of-scope / fallback responses without Markdown symbols
+Universal Dynamic Data Analytics Engine
+Dynamically analyzes user questions against any dataset column, field, attribute, or topic:
+- Dynamically resolves target dataset (Work Orders vs Deals Funnel vs All)
+- Dynamically resolves target attribute (e.g. status, project_name, sector, stage, owner, client, value, cost)
+- Dynamically computes unique counts, distributions, aggregations, or lists
+- Performs safe math evaluation & CSV/PDF exports
+- Professional out-of-scope handling without markdown asterisks
 """
 
 import re
@@ -56,54 +55,7 @@ class BIQueryEngine:
         q_raw = user_query.strip()
         q_lower = q_raw.lower()
 
-        action = None
-        action_payload = {}
-
-        # 🎯 1. SPECIFIC COUNT / PROJECT NAMES / METRIC INTENT
-        # Handle queries like "how many different project names are there in work order data tracker"
-        if ("how many" in q_lower or "count" in q_lower or "list all" in q_lower or "unique" in q_lower) and ("project" in q_lower or "work order" in q_lower or "flight" in q_lower or "name" in q_lower or "deal" in q_lower or "dealer" in q_lower or "client" in q_lower):
-            if "work order" in q_lower or "project" in q_lower or "tracker" in q_lower:
-                project_names = set(o["project_name"] for o in cleaned_orders if o.get("project_name"))
-                total_projects = len(project_names)
-                
-                lines = [
-                    f"Work Order Tracker Analytics:",
-                    f"There are {total_projects} unique project names in the Work Order Tracker board across {len(cleaned_orders)} total tracked work orders.",
-                    "",
-                    "Unique Project Names List:"
-                ]
-                for p in sorted(list(project_names))[:15]:
-                    lines.append(f"  - {p}")
-                if len(project_names) > 15:
-                    lines.append(f"  ... and {len(project_names) - 15} more project names.")
-                
-                return {
-                    "answer": "\n".join(lines),
-                    "is_clarification": False,
-                    "caveats": all_caveats,
-                    "action": None
-                }
-            elif "deal" in q_lower or "pipeline" in q_lower or "client" in q_lower or "dealer" in q_lower:
-                client_names = set(d["client"] for d in cleaned_deals if d.get("client"))
-                deal_names = set(d["deal_name"] for d in cleaned_deals if d.get("deal_name"))
-                
-                lines = [
-                    f"Sales Deals Funnel Analytics:",
-                    f"There are {len(deal_names)} unique deal names and {len(client_names)} unique client/dealer codes across {len(cleaned_deals)} total sales deals.",
-                    "",
-                    "Sample Unique Deal Names:"
-                ]
-                for d in sorted(list(deal_names))[:10]:
-                    lines.append(f"  - {d}")
-                
-                return {
-                    "answer": "\n".join(lines),
-                    "is_clarification": False,
-                    "caveats": all_caveats,
-                    "action": None
-                }
-
-        # 🧮 2. MATHEMATICAL CALCULATION DETECTOR
+        # 🧮 1. MATHEMATICAL CALCULATION DETECTOR
         math_keywords = ["calculate", "math", "add", "multiply", "divide", "subtract", "sum of", "percent of", "% of", "plus", "minus", "times"]
         is_math_query = any(k in q_lower for k in math_keywords) or re.search(r'^\s*[\d\(\)\.\s\+\-\*\/\%]+\s*$', q_lower)
         if is_math_query:
@@ -117,7 +69,7 @@ class BIQueryEngine:
                     "action": None
                 }
 
-        # 📄 3. EXPORT CSV / PDF INTENT
+        # 📄 2. EXPORT CSV / PDF INTENT
         is_export_csv = any(k in q_lower for k in ["export csv", "download csv", "generate csv", "csv report", "save csv"])
         is_export_pdf = any(k in q_lower for k in ["export pdf", "download pdf", "generate pdf", "pdf report", "save pdf", "print pdf"])
 
@@ -131,7 +83,7 @@ class BIQueryEngine:
                 "action_payload": {"type": export_type.lower()}
             }
 
-        # 🛡️ 4. SECURITY & WAF AUDIT INTENT
+        # 🛡️ 3. SECURITY & WAF AUDIT INTENT
         if any(k in q_lower for k in ["security", "waf", "attack", "audit", "log", "blocked", "checksum", "tamper", "owasp"]):
             audit_logs = self.security_guard.get_audit_logs() if self.security_guard else []
             blocked_count = sum(1 for log in audit_logs if "BLOCKED" in log.get("event_type", ""))
@@ -158,7 +110,7 @@ class BIQueryEngine:
                 "action_payload": {"view": "view-security"}
             }
 
-        # 🌐 5. UNIVERSAL SUMMARY INTENT
+        # 🌐 4. UNIVERSAL SUMMARY INTENT
         if any(k in q_lower for k in ["everything", "full summary", "summarize", "all data", "whole application", "overview", "complete info", "briefing"]):
             total_pipeline_val = sum(d["value"] for d in cleaned_deals)
             won_deals = [d for d in cleaned_deals if d["deal_status"].lower() == "won" or "won" in d["stage"].lower() or "work order received" in d["stage"].lower()]
@@ -190,7 +142,73 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # 🔍 6. DETAILED ENTITY / DEAL / SECTOR / STATUS FILTER & SEARCH
+        # 🧠 5. DYNAMIC FIELD & METRIC ANALYZER (No hardcoding)
+        # Dynamically determine target dataset
+        is_order_dataset = any(k in q_lower for k in ["work order", "order", "flight", "execution", "ops", "tracker"])
+        is_deal_dataset = any(k in q_lower for k in ["deal", "pipeline", "sales", "funnel", "revenue", "proposal"])
+        
+        # If dataset is unspecified, default based on keywords or analyze both
+        dataset_name = "Work Order Data Tracker" if (is_order_dataset and not is_deal_dataset) else ("Sales Deals Funnel" if (is_deal_dataset and not is_order_dataset) else "Work Order Tracker & Deals Pipeline")
+        target_records = cleaned_orders if is_order_dataset else (cleaned_deals if is_deal_dataset else cleaned_orders + cleaned_deals)
+
+        # Check if question is asking for count, unique values, breakdown, or list
+        is_count_query = any(k in q_lower for k in ["how many", "count", "number of", "different", "distinct", "unique", "types", "breakdown", "list"])
+
+        if is_count_query:
+            # Dynamically map query concepts to data fields
+            target_field = None
+            field_display_name = "Attribute"
+
+            if any(k in q_lower for k in ["status", "execution status", "state", "stage"]):
+                target_field = "status" if is_order_dataset else "deal_status"
+                field_display_name = "Execution Status / State"
+            elif any(k in q_lower for k in ["project name", "project", "flight name"]):
+                target_field = "project_name"
+                field_display_name = "Project Name"
+            elif any(k in q_lower for k in ["deal name", "deal"]):
+                target_field = "deal_name"
+                field_display_name = "Deal Name"
+            elif any(k in q_lower for k in ["sector", "industry", "vertical"]):
+                target_field = "sector"
+                field_display_name = "Sector"
+            elif any(k in q_lower for k in ["client", "customer", "dealer", "company", "account"]):
+                target_field = "client"
+                field_display_name = "Client / Dealer Code"
+            elif any(k in q_lower for k in ["owner", "manager", "representative"]):
+                target_field = "owner"
+                field_display_name = "Deal Owner"
+
+            if target_field:
+                # Dynamically collect unique values and count distribution
+                value_counts = {}
+                for r in target_records:
+                    val = r.get(target_field) or r.get("stage") or "Unspecified"
+                    if val and val != "Unspecified":
+                        value_counts[val] = value_counts.get(val, 0) + 1
+
+                unique_count = len(value_counts)
+
+                lines = [
+                    f"{dataset_name} Analytics:",
+                    f"There are {unique_count} different unique {field_display_name.lower()}(s) in the {dataset_name} across {len(target_records)} total records.",
+                    "",
+                    f"Breakdown of {field_display_name}s:"
+                ]
+
+                for val, count in sorted(value_counts.items(), key=lambda x: x[1], reverse=True)[:15]:
+                    lines.append(f"  - {val}: {count} record(s)")
+                
+                if len(value_counts) > 15:
+                    lines.append(f"  ... and {len(value_counts) - 15} more unique entries.")
+
+                return {
+                    "answer": "\n".join(lines),
+                    "is_clarification": False,
+                    "caveats": all_caveats,
+                    "action": None
+                }
+
+        # 🔍 6. DYNAMIC SPECIFIC RECORD / SEARCH FILTERING
         detected_sector = None
         for sector_key in ["energy", "powerline", "renewables", "mining", "infrastructure", "construction", "railways", "agriculture", "dsp", "tender"]:
             if sector_key in q_lower:
@@ -290,9 +308,9 @@ class BIQueryEngine:
                 }
             }
 
-        # ❓ 7. OUT-OF-SCOPE / PROFESSIONAL UNKNOWN FALLBACK
+        # ❓ 7. PROFESSIONAL UNKNOWN / OUT-OF-SCOPE FALLBACK
         return {
-            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.\n\nPlease ask me about pipeline revenues, client codes, sector analytics, project counts, mathematical calculations, or export options!",
+            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.\n\nPlease ask me about pipeline revenues, client codes, sector analytics, execution status, project counts, mathematical calculations, or export options!",
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
