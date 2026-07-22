@@ -1,12 +1,12 @@
 """
 Universal Zero-Error BI Intelligence Engine
 Handles:
-- Numerical inequality filters (below X, above X, less than X, greater than X, under X)
-- Entity lookups (Sakura, Alias_160, COMPANY089)
-- Field distributions & counts (execution status, project names, sectors, deal owners)
-- Math calculation evaluation
-- CSV & PDF exports
-- Out-of-scope domain protection
+- Numerical words & Indian Number System multipliers:
+  * lakhs / lakh / lac / lacs (x 1,00,000)
+  * crores / crore / cr (x 1,00,000,00)
+  * thousands / thousand / k (x 1,000)
+  * million / m (x 1,000,000)
+  * hundred / hundreds (x 100)
 """
 
 import os
@@ -29,6 +29,36 @@ class BIQueryEngine:
 
     def set_security_guard(self, security_guard):
         self.security_guard = security_guard
+
+    def parse_amount_with_multipliers(self, text: str):
+        """Converts terms like '2 lakhs', '5 lac', '1.5 crore', '50 thousand', '20k', '5 hundred' into exact floats."""
+        t = text.lower().strip()
+        
+        # Word number to digit map
+        word_digits = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "twenty": 20, "fifty": 50, "hundred": 100
+        }
+        for w, d in word_digits.items():
+            t = re.sub(rf'\b{w}\b', str(d), t)
+
+        # Multiplier rules
+        multipliers = [
+            (r'(\d+(?:\.\d+)?)\s*(?:crores?|cr)\b', 10000000.0),
+            (r'(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|lakh)\b', 100000.0),
+            (r'(\d+(?:\.\d+)?)\s*(?:millions?|m)\b', 1000000.0),
+            (r'(\d+(?:\.\d+)?)\s*(?:thousands?|k)\b', 1000.0),
+            (r'(\d+(?:\.\d+)?)\s*(?:hundreds?)\b', 100.0),
+            (r'(\d+(?:\.\d+)?)', 1.0)
+        ]
+
+        for pattern, mult in multipliers:
+            m = re.search(pattern, t)
+            if m:
+                base_num = float(m.group(1))
+                return base_num * mult
+        return None
 
     def analyze(self, raw_deals: list, raw_orders: list, user_query: str) -> dict:
         cleaned_deals, deal_caveats = self.resilience.process_deals(raw_deals)
@@ -90,9 +120,15 @@ class BIQueryEngine:
                     "Analyze the user's question carefully against the provided JSON records and perform accurate filter/math operations.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. NUMERICAL INEQUALITIES (e.g. 'billed amounts below 200000', 'value greater than 1M'): Strictly filter items where the numeric field ('cost' for work orders, 'value' for deals) matches the inequality condition (< 200000). DO NOT list items exceeding the limit.\n"
-                    "3. SPECIFIC ENTITY LOOKUPS (e.g. 'Sakura', 'Alias_160'): Filter items matching the exact entity name and return exact sums and item lists.\n"
-                    "4. If no items match the numerical or entity criteria, clearly state that 0 records matched.\n"
+                    "2. UNDERSTAND NUMERICAL MULTIPLIERS (Indian & International):\n"
+                    "   - 2 lakhs = 200,000\n"
+                    "   - 5 lac = 500,000\n"
+                    "   - 1.5 crore = 15,000,000\n"
+                    "   - 50 thousand = 50,000\n"
+                    "   - 20k = 20,000\n"
+                    "   - 5 hundred = 500\n"
+                    "3. NUMERICAL INEQUALITIES (e.g. 'billed amounts below 2 lakhs', 'value greater than 1 crore'): Strictly filter items matching the condition. DO NOT list items exceeding the limit.\n"
+                    "4. If no items match, state that 0 records matched.\n"
                     "5. Keep responses clean, precise, and professional."
                 )
 
@@ -118,55 +154,57 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 4. NUMERICAL INEQUALITY & VALUE COMPARISON ENGINE (Fallback)
-        num_match = re.search(r'(below|under|less than|smaller than|above|over|greater than|more than)\s*(?:rs\.?|inr)?\s*(\d+(?:\.\d+)?)', q_lower)
+        # 🧠 4. MULTIPLIER-AWARE NUMERICAL INEQUALITY ENGINE (Fallback)
+        num_match = re.search(r'(below|under|less than|smaller than|above|over|greater than|more than)\s*(?:rs\.?|inr)?\s*([a-z0-9\.\s]+)', q_lower)
         if num_match:
             op = num_match.group(1)
-            target_val = float(num_match.group(2))
-
-            is_less = op in ["below", "under", "less than", "smaller than"]
+            raw_amt_str = num_match.group(2)
             
-            matching_orders = []
-            for o in cleaned_orders:
-                cost = float(o.get("cost", 0))
-                if is_less and cost < target_val:
-                    matching_orders.append(o)
-                elif not is_less and cost > target_val:
-                    matching_orders.append(o)
+            target_val = self.parse_amount_with_multipliers(raw_amt_str)
+            if target_val is not None:
+                is_less = op in ["below", "under", "less than", "smaller than"]
+                
+                matching_orders = []
+                for o in cleaned_orders:
+                    cost = float(o.get("cost", 0))
+                    if is_less and cost < target_val:
+                        matching_orders.append(o)
+                    elif not is_less and cost > target_val:
+                        matching_orders.append(o)
 
-            matching_deals = []
-            for d in cleaned_deals:
-                val = float(d.get("value", 0))
-                if is_less and val < target_val:
-                    matching_deals.append(d)
-                elif not is_less and val > target_val:
-                    matching_deals.append(d)
+                matching_deals = []
+                for d in cleaned_deals:
+                    val = float(d.get("value", 0))
+                    if is_less and val < target_val:
+                        matching_deals.append(d)
+                    elif not is_less and val > target_val:
+                        matching_deals.append(d)
 
-            op_label = f"below Rs. {target_val:,.2f}" if is_less else f"above Rs. {target_val:,.2f}"
+                op_label = f"below Rs. {target_val:,.2f}" if is_less else f"above Rs. {target_val:,.2f}"
 
-            lines = [f"Numerical Query Results for Billed/Value amounts {op_label}:\n"]
+                lines = [f"Numerical Query Results for Billed/Value amounts {op_label}:\n"]
 
-            if matching_orders:
-                lines.append(f"Work Order Tracker Records ({len(matching_orders)} matching):")
-                for o in matching_orders[:15]:
-                    lines.append(f"  - Project: {o.get('project_name')} ({o.get('work_order_id')}) | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
-                if len(matching_orders) > 15:
-                    lines.append(f"  ... and {len(matching_orders) - 15} more projects.")
+                if matching_orders:
+                    lines.append(f"Work Order Tracker Records ({len(matching_orders)} matching):")
+                    for o in matching_orders[:15]:
+                        lines.append(f"  - Project: {o.get('project_name')} ({o.get('work_order_id')}) | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
+                    if len(matching_orders) > 15:
+                        lines.append(f"  ... and {len(matching_orders) - 15} more projects.")
 
-            if matching_deals:
-                lines.append(f"\nSales Deals Funnel Records ({len(matching_deals)} matching):")
-                for d in matching_deals[:15]:
-                    lines.append(f"  - Deal: {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Pipeline Value: Rs. {d.get('value', 0):,.2f}")
+                if matching_deals:
+                    lines.append(f"\nSales Deals Funnel Records ({len(matching_deals)} matching):")
+                    for d in matching_deals[:15]:
+                        lines.append(f"  - Deal: {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Pipeline Value: Rs. {d.get('value', 0):,.2f}")
 
-            if not matching_orders and not matching_deals:
-                lines.append(f"No records found with billed/pipeline amounts {op_label}.")
+                if not matching_orders and not matching_deals:
+                    lines.append(f"No records found with billed/pipeline amounts {op_label}.")
 
-            return {
-                "answer": "\n".join(lines),
-                "is_clarification": False,
-                "caveats": all_caveats,
-                "action": None
-            }
+                return {
+                    "answer": "\n".join(lines),
+                    "is_clarification": False,
+                    "caveats": all_caveats,
+                    "action": None
+                }
 
         # 🧠 5. ENTITY & GENERAL TEXT SEARCH ENGINE (Fallback)
         stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with", "want", "all"}
