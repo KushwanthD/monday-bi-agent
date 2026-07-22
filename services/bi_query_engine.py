@@ -1,7 +1,6 @@
 """
 Universal Gemini AI Power-Engine for BI Analytics
-Integrates Google Gemini 2.5 Flash API for zero-mistake natural language understanding
-across all Monday.com deals funnel & work order tracker datasets.
+Integrates Google Gemini 2.5 Flash API with precise target entity resolution & exact filtering
 """
 
 import os
@@ -93,12 +92,11 @@ class BIQueryEngine:
                     "Your goal is to answer the user's questions with 100% precision based on the provided live JSON data context.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. If the user asks for math calculations (e.g. 15% of X, add/multiply), perform accurate arithmetic.\n"
-                    "3. If the user asks about specific entities (e.g. 'Sakura', 'COMPANY089', 'OWNER_001'), calculate exact totals and list exact matching records.\n"
-                    "4. If the user asks for unique counts (e.g., 'how many execution status', 'how many project names'), count unique values accurately.\n"
-                    "5. If the user asks something completely unrelated to the application or business data (e.g. sports, weather), politely state: "
-                    "'Sorry! I do not have information regarding that in the application. I am your dedicated Skylark Business Intelligence Agent...'\n"
-                    "6. Keep responses clean, concise, and professional."
+                    "2. If the user asks for total billed amounts, costs, or values for a specific entity or filter (e.g., 'Alias_160 mining projects billed amount'), ONLY match records that actually contain that specific entity and sector. Calculate the exact sum for matching records and list ONLY those matching items.\n"
+                    "3. Do not list unrelated items or dump all records.\n"
+                    "4. If the user asks something completely unrelated to the application or business data (e.g. sports, weather), politely state: "
+                    "'Sorry! I do not have information regarding that in the application...'\n"
+                    "5. Keep responses clean, concise, and professional."
                 )
 
                 prompt = f"Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
@@ -123,42 +121,48 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 DETERMINISTIC AI FALLBACK ENGINE
-        # Exact calculation & aggregation fallback logic
-        stop_words = {"what", "is", "the", "total", "billed", "amount", "amounts", "done", "by", "for", "in", "of", "how", "many", "how", "much", "show", "list", "deals", "orders", "work", "tracker", "funnel", "pipeline", "data", "different", "unique"}
-        words = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_words]
-        search_target = words[0] if words else None
+        # 🧠 DETERMINISTIC TARGET MATCHING ENGINE (Fallback)
+        # Smart multi-token extraction: e.g. "Alias_160", "Mining", "Sakura"
+        stop_words = {"what", "is", "the", "total", "billed", "amount", "amounts", "done", "by", "for", "in", "of", "how", "many", "how", "much", "show", "list", "deals", "orders", "work", "tracker", "funnel", "pipeline", "data", "different", "unique", "projects", "project", "need"}
+        search_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_words]
 
-        # Check for sum / total query
-        if any(k in q_lower for k in ["total", "sum", "billed amount", "billed amounts", "how much", "revenue"]):
-            matching_orders = [o for o in cleaned_orders if search_target and search_target in str(o).lower()]
-            matching_deals = [d for d in cleaned_deals if search_target and search_target in str(d).lower()]
+        # Filter orders & deals matching ALL search tokens
+        matching_orders = cleaned_orders
+        matching_deals = cleaned_deals
 
-            if matching_orders or matching_deals:
-                total_billed = sum(o.get("cost", 0) for o in matching_orders)
-                total_val = sum(d.get("value", 0) for d in matching_deals)
+        if search_tokens:
+            for t in search_tokens:
+                matching_orders = [o for o in matching_orders if t in str(o).lower()]
+                matching_deals = [d for d in matching_deals if t in str(d).lower()]
 
-                lines = []
-                if search_target:
-                    lines.append(f"Financial Summary for '{search_target.title()}':\n")
-                
-                if matching_orders:
-                    lines.append(f"- Total Billed Amount in Work Orders: Rs. {total_billed:,.2f} across {len(matching_orders)} project(s).")
-                    lines.append("  Breakdown of Work Orders:")
-                    for o in matching_orders:
-                        lines.append(f"    - {o.get('project_name')} ({o.get('work_order_id')}) | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
+        total_billed = sum(o.get("cost", 0) for o in matching_orders)
+        total_val = sum(d.get("value", 0) for d in matching_deals)
 
-                if matching_deals:
-                    lines.append(f"\n- Total Sales Pipeline Value in Deals Funnel: Rs. {total_val:,.2f} across {len(matching_deals)} deal(s).")
-                    lines.append("  Breakdown of Sales Deals:")
-                    for d in matching_deals[:5]:
-                        lines.append(f"    - {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
+        label = " ".join([t.title() for t in search_tokens]) if search_tokens else "Dataset"
 
-                return {"answer": "\n".join(lines), "is_clarification": False, "caveats": all_caveats, "action": None}
+        lines = [f"Financial Analytics Summary for '{label}':\n"]
 
-        # Out-of-scope fallback
+        if matching_orders:
+            lines.append(f"- Total Billed Amount in Work Orders: Rs. {total_billed:,.2f} across {len(matching_orders)} matching project(s).")
+            lines.append("  Matching Work Orders List:")
+            for o in matching_orders[:10]:
+                lines.append(f"    - {o.get('project_name')} ({o.get('work_order_id')}) | Sector: {o.get('sector')} | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
+            if len(matching_orders) > 10:
+                lines.append(f"    ... and {len(matching_orders) - 10} more projects.")
+
+        if matching_deals:
+            lines.append(f"\n- Total Pipeline Value in Sales Deals: Rs. {total_val:,.2f} across {len(matching_deals)} matching deal(s).")
+            lines.append("  Matching Sales Deals List:")
+            for d in matching_deals[:10]:
+                lines.append(f"    - {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
+            if len(matching_deals) > 10:
+                lines.append(f"    ... and {len(matching_deals) - 10} more deals.")
+
+        if not matching_orders and not matching_deals:
+            lines.append(f"No active deals or work orders found matching '{label}'.")
+
         return {
-            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
+            "answer": "\n".join(lines),
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
