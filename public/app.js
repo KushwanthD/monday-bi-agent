@@ -211,6 +211,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.caveats) {
           updateCaveats(data.caveats);
         }
+
+        // Handle Chat Actions (Redirects, Filters, Exports)
+        if (data.action === 'export') {
+          const exportType = (data.action_payload && data.action_payload.type) || 'pdf';
+          if (exportType === 'pdf') {
+            setTimeout(() => window.print(), 800);
+          } else if (exportType === 'csv') {
+            exportTableToCSV();
+          }
+        } else if (data.action === 'redirect') {
+          const targetView = data.action_payload.view;
+          const targetBtn = document.querySelector(`.nav-btn[data-view="${targetView}"]`);
+          if (targetBtn) setTimeout(() => targetBtn.click(), 1200);
+        } else if (data.action === 'apply_filters_and_redirect') {
+          const payload = data.action_payload;
+          const targetBtn = document.querySelector(`.nav-btn[data-view="view-boards"]`);
+          
+          setTimeout(() => {
+            if (targetBtn) targetBtn.click();
+
+            if (payload.sector && filterSector) filterSector.value = payload.sector;
+            if (payload.status && filterStatus) filterStatus.value = payload.status;
+            if (payload.search && filterSearch) filterSearch.value = payload.search;
+
+            applyTableFilters();
+          }, 1500);
+        }
       } else {
         appendMessage('agent', `⚠️ ${data.error || 'Server error occurred'}\n${data.details || ''}`);
       }
@@ -218,6 +245,30 @@ document.addEventListener('DOMContentLoaded', () => {
       appendMessage('agent', `❌ Connection error: Could not reach BI Agent server.`);
     }
   });
+
+  // CSV Export Utility Function
+  function exportTableToCSV() {
+    if (!currentBoardItems || currentBoardItems.length === 0) {
+      alert("No table data available to export.");
+      return;
+    }
+    const headers = ["ID", "Name", "Group", "State", "Updated At"];
+    const rows = currentBoardItems.map(item => [
+      `"${item.id || ''}"`,
+      `"${(item.name || '').replace(/"/g, '""')}"`,
+      `"${(item.group_title || '').replace(/"/g, '""')}"`,
+      `"${(item.state || '').replace(/"/g, '""')}"`,
+      `"${item.updated_at || ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `monday_board_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   // Suggestion Chips Click
   chips.forEach(chip => {
