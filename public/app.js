@@ -215,13 +215,34 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle Chat Actions (Redirects, Filters, Exports)
         if (data.action === 'export') {
           const exportType = (data.action_payload && data.action_payload.type) || 'pdf';
-          if (exportType === 'pdf') {
-            setTimeout(() => window.print(), 800);
-          } else if (exportType === 'csv' || exportType === 'excel') {
-            exportTableToCSV();
-          } else if (exportType === 'word' || exportType === 'doc' || exportType === 'txt') {
-            exportTableToWord(exportType);
-          }
+          const entity = (data.action_payload && data.action_payload.entity) || 'Workspace Data';
+          
+          // Append interactive download card with PDF/CSV preview button
+          const actionCard = document.createElement('div');
+          actionCard.className = 'export-card-box glass-panel';
+          actionCard.style.cssText = 'margin-top: 12px; padding: 14px; border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 8px; background: rgba(10, 15, 30, 0.7); display: flex; align-items: center; justify-content: space-between; gap: 12px;';
+          actionCard.innerHTML = `
+            <div>
+              <div style="font-weight: 600; color: #00f0ff; font-size: 0.95rem;">📄 ${exportType.toUpperCase()} Report Ready: ${entity}</div>
+              <div style="font-size: 0.8rem; color: #a0aec0;">Click button below to preview and download report.</div>
+            </div>
+            <button class="btn btn-primary btn-sm btn-download-export" style="background: linear-gradient(135deg, #00f0ff, #7000ff); border: none; padding: 8px 16px; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer;">
+              ⬇️ Download ${exportType.toUpperCase()}
+            </button>
+          `;
+          
+          actionCard.querySelector('.btn-download-export').addEventListener('click', () => {
+            if (exportType === 'pdf') {
+              window.print();
+            } else if (exportType === 'csv' || exportType === 'excel') {
+              exportTableToCSV();
+            } else {
+              exportTableToWord(exportType);
+            }
+          });
+
+          const lastMsg = chatBox.lastElementChild;
+          if (lastMsg) lastMsg.appendChild(actionCard);
         } else if (data.action === 'redirect') {
           const targetView = data.action_payload.view;
           const targetBtn = document.querySelector(`.nav-btn[data-view="${targetView}"]`);

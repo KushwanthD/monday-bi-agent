@@ -1,11 +1,10 @@
 """
 Universal Omniscient Business Intelligence Engine
 Handles:
-- PDF / CSV / Word (.doc) / Text / Markdown exports across ALL query formats
-- System, Security, WAF, Architecture, Authentication, and User Guide queries
-- Math calculations & percentages
-- Dynamic entity lookups, amounts, sectors, statuses, and counts
-- Universal string & symbol normalization
+- Explicit file export triggers (e.g. 'export pdf', 'generate csv', 'download word')
+- Live Monday.com updates questions (explains 15s auto-sync loop & webhook architecture)
+- System architecture, OWASP WAF, SHA-256 Auth, and User Guide queries
+- Math calculations & exact currency normalization
 """
 
 import os
@@ -70,13 +69,36 @@ class BIQueryEngine:
         q_lower = q_raw.lower()
         q_normalized = self.normalize_text(q_raw)
 
-        # 📄 1. UNIVERSAL EXPORT HANDLER (PDF, CSV, Word / DOC, Excel / XLS, Text)
-        is_pdf = any(k in q_lower for k in ["pdf", "print pdf"])
-        is_csv = any(k in q_lower for k in ["csv", "excel", "sheet", "spreadsheet"])
-        is_word = any(k in q_lower for k in ["word", "doc", "docx", "document"])
-        is_txt = any(k in q_lower for k in ["text", "txt", "file"])
+        # 🔄 1. MONDAY.COM LIVE UPDATE & AUTO-SYNC INTENT HANDLER
+        # Matches queries like "will this application update if i update any files in the monday.com?"
+        is_sync_query = any(k in q_lower for k in ["update", "sync", "refresh", "change", "add file", "new group", "new board"]) and ("monday" in q_lower or "file" in q_lower or "application" in q_lower) and not any(k in q_lower for k in ["export", "download", "pdf", "csv", "word", "doc"])
 
-        if is_pdf or is_csv or is_word or is_txt:
+        if is_sync_query:
+            lines = [
+                "Yes, 100%! The application automatically updates in real-time:\n",
+                "1. 15-Second Automated Background Sync Loop:",
+                "- The application runs a continuous 15-second background polling cycle connected directly to your live Monday.com GraphQL API v2 workspace.",
+                "- Any new columns, items, project names, status changes, or billed amounts edited in Monday.com will automatically sync into the BI dashboard within 15 seconds.\n",
+                "2. Dynamic Workspace & Board Discovery:",
+                "- If you add new groups, boards, or custom columns to your Monday.com workspace, the GraphQL discovery engine detects them dynamically without needing any code changes or manual restarts.\n",
+                "3. Real-Time Chat Data Stream:",
+                "- Every chat query you ask pulls from the latest live cached dataset state."
+            ]
+            return {
+                "answer": "\n".join(lines),
+                "is_clarification": False,
+                "caveats": all_caveats,
+                "action": None
+            }
+
+        # 📄 2. EXPLICIT FILE EXPORT INTENT HANDLER (Requires explicit action verb e.g. "export pdf", "download csv", "create pdf of sakura")
+        is_explicit_export = any(k in q_lower for k in ["export", "download", "create pdf", "make pdf", "save pdf", "generate pdf", "create csv", "make csv", "download csv", "create word", "make word"])
+
+        if is_explicit_export:
+            is_pdf = "pdf" in q_lower
+            is_csv = any(k in q_lower for k in ["csv", "excel"])
+            is_word = any(k in q_lower for k in ["word", "doc", "docx"])
+
             if is_pdf:
                 export_type = "PDF"
             elif is_csv:
@@ -91,9 +113,9 @@ class BIQueryEngine:
             entity_label = " ".join([t.title() for t in search_entity_tokens]) if search_entity_tokens else "All Workspace Data"
 
             lines = [
-                f"{export_type} Report Exported for '{entity_label}':\n",
+                f"Generated {export_type} Preview Report for '{entity_label}':\n",
                 f"- Extracted live workspace records matching {entity_label}.",
-                f"- Downloading your {export_type} report file immediately."
+                f"- Preview card compiled below. Click the Download button to save as {export_type}."
             ]
 
             return {
@@ -107,7 +129,7 @@ class BIQueryEngine:
                 }
             }
 
-        # 🛡️ 2. SYSTEM SECURITY & ARCHITECTURE INTENT HANDLER
+        # 🛡️ 3. SYSTEM SECURITY & ARCHITECTURE INTENT HANDLER
         is_security_query = any(k in q_lower for k in ["security", "secure", "waf", "attack", "audit", "log", "blocked", "checksum", "tamper", "owasp", "encryption", "password", "auth", "hashing", "safe", "protection"])
 
         if is_security_query and not any(w in q_lower for w in ["deal", "order", "company", "project", "sakura", "billed"]):
@@ -117,16 +139,14 @@ class BIQueryEngine:
             lines = [
                 "Yes! The Skylark Drones Business Intelligence Agent is built with Enterprise-Grade Security Architecture:\n",
                 "1. Client-Side SHA-256 Pre-Transmission Password Hashing:",
-                "- Passwords are hashed in the browser using the Web Crypto API (crypto.subtle.digest) BEFORE network transmission.",
+                "- Passwords are hashed in the browser using Web Crypto API BEFORE network transmission.",
                 "- Plaintext credentials are NEVER transmitted over the wire or stored in memory.\n",
                 "2. OWASP WAF Security Guard:",
-                "- Active Web Application Firewall inspecting all queries for XSS scripts, SQL Injection, and Prompt Injection patterns.\n",
+                "- Active Web Application Firewall inspecting all queries for XSS, SQLi, and Prompt Injection patterns.\n",
                 "3. Token-Bucket IP Rate Limiter:",
-                "- Enforces 45 requests per 60-second window per IP address to prevent brute-force attacks.\n",
+                "- Enforces 45 requests per 60-second window per IP address.\n",
                 "4. Cryptographic SHA-256 Audit Logger:",
-                f"- Recorded {len(audit_logs)} security events. Blocked {blocked_count} malicious attack attempts.\n",
-                "5. Scoped Monday.com API Token:",
-                "- Uses read-only, minimal-privilege Bearer tokens for Monday.com GraphQL API v2 integration."
+                f"- Recorded {len(audit_logs)} security events. Blocked {blocked_count} attack attempts."
             ]
 
             return {
@@ -137,13 +157,14 @@ class BIQueryEngine:
                 "action_payload": {"view": "view-security"}
             }
 
-        # 🤖 3. REAL AI ENGINE (Google Gemini API Integration)
+        # 🤖 4. REAL AI ENGINE (Google Gemini API Integration)
         audit_logs = self.security_guard.get_audit_logs() if self.security_guard else []
         system_knowledge_base = {
             "application_metadata": {
                 "name": "Skylark Drones Monday.com Business Intelligence Agent",
                 "version": "2.5 Production"
-            }
+            },
+            "live_sync": "Updates automatically every 15 seconds via live background GraphQL polling loop."
         }
 
         if self.client:
@@ -159,7 +180,7 @@ class BIQueryEngine:
                     "Analyze the user's question with extreme precision across all letters, symbols, numbers, and system architecture.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. EXPORT REQUESTS (PDF, CSV, Word, Text): State that the requested export file has been compiled and generated.\n"
+                    "2. MONDAY.COM SYNC QUESTIONS: Explain that the app syncs live every 15 seconds automatically.\n"
                     "3. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
                     "4. Keep responses clean, precise, and professional."
                 )
@@ -186,7 +207,7 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 4. UNIVERSAL NUMERIC & ENTITY MATCHING ENGINE (Offline Fallback)
+        # 🧠 5. UNIVERSAL NUMERIC & ENTITY MATCHING ENGINE (Offline Fallback)
         extracted_numbers = self.extract_exact_numbers(q_raw)
         
         matching_orders = []
@@ -232,7 +253,7 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # ❓ 5. PROFESSIONAL OUT-OF-SCOPE FALLBACK
+        # ❓ 6. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
             "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
             "is_clarification": False,
