@@ -1,10 +1,9 @@
 """
-Universal Full-Application Omniscient Intelligence Engine
-Trained with full-system architecture knowledge base + real-time Monday.com live data stream:
-- Full system architecture (OWASP WAF, SHA-256 Auth, 15s TTL, GraphQL v2, Data Resilience Engine)
-- Live Monday.com Sales Deals Funnel + Work Order Tracker data
-- Live OWASP Security Audit Logs & IP Rate Limiting state
-- User onboarding guides, feature walkthroughs, and system capabilities
+Universal Omniscient Business Intelligence Engine
+Handles:
+- Exact numeric amount lookup (e.g. ₹1,83,130.20 or 183130.20)
+- Currency formatting stripping (rupee sign ₹, commas, spaces)
+- Multi-token code matching & exact value search
 """
 
 import os
@@ -28,32 +27,20 @@ class BIQueryEngine:
     def set_security_guard(self, security_guard):
         self.security_guard = security_guard
 
-    def parse_amount_with_multipliers(self, text: str):
-        """Converts terms like '2 lakhs', '5 lac', '1.5 crore', '50 thousand', '20k', '5 hundred' into exact floats."""
-        t = text.lower().strip()
-        word_digits = {
-            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-            "twenty": 20, "fifty": 50, "hundred": 100
-        }
-        for w, d in word_digits.items():
-            t = re.sub(rf'\b{w}\b', str(d), t)
-
-        multipliers = [
-            (r'(\d+(?:\.\d+)?)\s*(?:crores?|cr)\b', 10000000.0),
-            (r'(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|lakh)\b', 100000.0),
-            (r'(\d+(?:\.\d+)?)\s*(?:millions?|m)\b', 1000000.0),
-            (r'(\d+(?:\.\d+)?)\s*(?:thousands?|k)\b', 1000.0),
-            (r'(\d+(?:\.\d+)?)\s*(?:hundreds?)\b', 100.0),
-            (r'(\d+(?:\.\d+)?)', 1.0)
-        ]
-
-        for pattern, mult in multipliers:
-            m = re.search(pattern, t)
-            if m:
-                base_num = float(m.group(1))
-                return base_num * mult
-        return None
+    def extract_exact_numbers(self, text: str) -> list:
+        """Extracts exact float values from queries containing currency symbols, commas, or rupee formatting like ₹1,83,130.20."""
+        # Find patterns like ₹1,83,130.20 or 1,83,130.20 or 183130.20
+        clean = text.replace('₹', '').replace('rs', '').replace('inr', '')
+        matches = re.findall(r'\b\d+(?:,\d+)*(?:\.\d+)?\b', clean)
+        results = []
+        for m in matches:
+            try:
+                val = float(m.replace(',', ''))
+                if val > 0:
+                    results.append(val)
+            except ValueError:
+                pass
+        return results
 
     def analyze(self, raw_deals: list, raw_orders: list, user_query: str) -> dict:
         cleaned_deals, deal_caveats = self.resilience.process_deals(raw_deals)
@@ -102,64 +89,25 @@ class BIQueryEngine:
                 "action_payload": {"view": "view-security"}
             }
 
-        # 🤖 3. UNIVERSAL OMNISCIENT AI ENGINE (Google Gemini API with Complete Application System Knowledge Base)
-        audit_logs = self.security_guard.get_audit_logs() if self.security_guard else []
-        
-        system_knowledge_base = {
-            "application_metadata": {
-                "name": "Skylark Drones Monday.com Business Intelligence Agent",
-                "version": "2.5 Production",
-                "purpose": "Real-time cross-board BI analytics, executive briefings, dynamic board discovery, and enterprise security for Skylark Drones."
-            },
-            "security_architecture": {
-                "authentication": "AEGIS Cyberpunk Glassmorphic Authentication Portal using SHA-256 pre-transmission client-side hashing via browser Web Crypto API (crypto.subtle.digest). Plaintext passwords are NEVER sent across the network.",
-                "credentials": "Username: Skylark | Password: Drones (client SHA-256 pre-hashed before POST body transmission)",
-                "waf_protection": "OWASP Top 10 WAF Security Guard actively scanning for Prompt Injection, XSS scripts, and SQLi patterns.",
-                "rate_limiting": "Token-bucket IP Rate Limiter enforcing 45 requests per 60-second window per IP address.",
-                "audit_logger": "Cryptographic tamper-evident SHA-256 audit logger recording all authentication events, queries, and security violations.",
-                "live_audit_logs": audit_logs[-5:]
-            },
-            "data_and_integrations": {
-                "monday_api": "Live Monday.com GraphQL API v2 integration with 15-second TTL in-memory caching for sub-millisecond tab switching and lightning-fast queries.",
-                "boards_tracked": [
-                    {"name": "Sales Deals Funnel", "description": "Tracks all commercial sales opportunities, deal values, stages (Open, Won, Proposal, Dead), client codes (COMPANY001..195), sectors, and deal owners."},
-                    {"name": "Work Order Tracker", "description": "Tracks drone flight execution projects, project names, Work Order IDs (SDPLDEAL-001..188), execution status (Completed, Ongoing, Executed until current month, Not Started, Pause/struck), client codes (WOCOMPANY_001..020), and billed costs."}
-                ],
-                "data_resilience_engine": "Automatically cleans missing values, normalizes currency formatting, resolves sector synonyms (e.g. powerline -> Energy), and monitors data quality caveats."
-            },
-            "features_and_views": [
-                {"view_id": "view-chat", "title": "Executive Business Intelligence Console", "description": "Natural language AI Assistant, KPI grid, suggestion chips, and real-time caveats box."},
-                {"view_id": "view-boards", "title": "Monday.com Boards Live Viewer", "description": "Normalized dynamic table viewer with multi-criteria compound filters (Search, Sector, Status, Stage), dynamic group tabs, and deep-links to Monday.com."},
-                {"view_id": "view-briefing", "title": "Executive Leadership Briefings", "description": "Auto-generated C-suite executive markdown briefing reports ready for PDF print export or copying to clipboard."},
-                {"view_id": "view-security", "title": "Cybersecurity & OWASP WAF Audit", "description": "Live security grid, rate limiter metrics, and tamper-evident audit logs table."},
-                {"view_id": "view-features", "title": "System Architecture & Features Guide", "description": "Comprehensive guide explaining BI analytics, security architecture, and GraphQL discovery."}
-            ]
-        }
-
+        # 🤖 3. REAL AI ENGINE (Google Gemini API Integration)
         if self.client:
             try:
                 data_context = {
-                    "system_knowledge_base": system_knowledge_base,
                     "sales_deals_data": cleaned_deals,
                     "work_orders_data": cleaned_orders
                 }
 
                 system_instruction = (
-                    "You are the official Skylark Drones Omniscient Business Intelligence AI Assistant.\n"
-                    "You possess complete knowledge of both the live data records AND the system architecture, security features, user guide, and application capabilities.\n\n"
+                    "You are the official Skylark Drones Executive Business Intelligence AI Assistant.\n"
+                    "Analyze the user's question carefully against the provided JSON records.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. If the user asks about SYSTEM ARCHITECTURE, SECURITY FEATURES, HOW THE APPLICATION WORKS, or USER GUIDES:\n"
-                    "   Answer comprehensively using the system_knowledge_base (explain SHA-256 pre-hashing, OWASP WAF, 15-second TTL cache, Monday.com GraphQL API v2, rate limiting, and all 5 dashboard view panels).\n"
-                    "3. If the user asks about SPECIFIC ENTITIES or NUMERICAL FILTERS (e.g. 'Alias_160', 'Sakura', 'WOCOMPANY_051', 'billed below 2 lakhs'):\n"
-                    "   Analyze the sales_deals_data and work_orders_data precisely, calculate exact totals, and list matching records.\n"
-                    "4. If the user asks for MATH CALCULATIONS or EXPORT OPTIONS (CSV/PDF):\n"
-                    "   Perform accurate arithmetic or explain/trigger exports.\n"
-                    "5. Only state out-of-scope if the question is completely unrelated to business, drones, cybersecurity, or application software.\n"
-                    "6. Be polite, authoritative, highly intelligent, and 100% accurate."
+                    "2. EXACT AMOUNT LOOKUPS (e.g., '₹1,83,130.20' or '183130.20'): Normalize currency symbols and commas. Search for deals or work orders where value or cost equals or closely matches that number. List all matching records, including Project/Deal Name, Work Order ID/Client Code, Sector, Status, and exact amount.\n"
+                    "3. SYSTEM / SECURITY / GUIDE QUESTIONS: Answer comprehensively using system knowledge.\n"
+                    "4. Keep responses clean, precise, and professional."
                 )
 
-                prompt = f"System Knowledge & Live Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
+                prompt = f"Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
 
                 response = self.client.models.generate_content(
                     model='gemini-2.5-flash',
@@ -181,30 +129,37 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 4. HARDENED DETERMINISTIC FALLBACK ENGINE
-        # Handle system architecture & guide queries if offline
-        if any(k in q_lower for k in ["security", "feature", "guide", "how does", "how to use", "architecture", "waf", "sha-256", "login", "password"]):
-            lines = [
-                "Skylark Drones Application System & Security Guide:\n",
-                "1. Security & Authentication Architecture:",
-                "- Client-Side SHA-256 Pre-Transmission Hashing: Passwords are pre-hashed in your browser using Web Crypto API before POST transmission.",
-                "- OWASP WAF Security Guard: Actively filters XSS, SQLi, and Prompt Injection attacks.",
-                "- Token-Bucket Rate Limiter: Enforces 45 requests per minute per IP address.",
-                "- Tamper-Evident SHA-256 Audit Logger: Records cryptographic audit logs of all security events.\n",
-                "2. Real-Time Data & Performance:",
-                "- Monday.com GraphQL API v2 Integration: Connects live to your workspace boards.",
-                "- 15-Second In-Memory TTL Cache: Provides sub-millisecond tab switching and auto-syncs live updates every 15s.\n",
-                "3. Key Application Modules:",
-                "- Executive BI Console (Chatbot & KPIs)",
-                "- Monday.com Live Boards Viewer (Multi-Criteria Filters & Group Tabs)",
-                "- Executive Leadership Briefings (PDF Export & Markdown Reports)",
-                "- Security & WAF Audit Logs",
-                "- System Architecture & Features Guide"
-            ]
-            return {"answer": "\n".join(lines), "is_clarification": False, "caveats": all_caveats, "action": None}
+        # 🧠 4. EXACT CURRENCY AMOUNT SEARCH ENGINE (Fallback)
+        extracted_amounts = self.extract_exact_numbers(q_raw)
+        if extracted_amounts:
+            target_amount = extracted_amounts[0]
+            
+            matching_orders = [o for o in cleaned_orders if abs(float(o.get("cost", 0)) - target_amount) < 1.0]
+            matching_deals = [d for d in cleaned_deals if abs(float(d.get("value", 0)) - target_amount) < 1.0]
 
+            if matching_orders or matching_deals:
+                lines = [f"Record Lookup Results for Amount Rs. {target_amount:,.2f}:\n"]
+
+                if matching_orders:
+                    lines.append(f"Matching Work Orders ({len(matching_orders)} record):")
+                    for o in matching_orders:
+                        lines.append(f"  - Project Name: {o.get('project_name')} | Work Order ID: {o.get('work_order_id')} | Client Code: {o.get('client')} | Status: {o.get('status')} | Billed Amount: Rs. {o.get('cost', 0):,.2f}")
+
+                if matching_deals:
+                    lines.append(f"\nMatching Sales Deals ({len(matching_deals)} record):")
+                    for d in matching_deals:
+                        lines.append(f"  - Deal Name: {d.get('deal_name')} | Account/Client Code: {d.get('client')} | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Deal Value: Rs. {d.get('value', 0):,.2f}")
+
+                return {
+                    "answer": "\n".join(lines),
+                    "is_clarification": False,
+                    "caveats": all_caveats,
+                    "action": None
+                }
+
+        # 🧠 5. CODE / ENTITY SEARCH ENGINE (Fallback)
         code_match = re.search(r'(wocompany_?\d+|company_?\d+|sdpldeal-?\d+|owner_?\d+|alias_\d+|[a-z0-9_-]{4,})', q_lower)
-        stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with", "want", "everyone", "anyone", "all"}
+        stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with", "want", "everyone", "anyone", "all", "this", "deal", "information"}
         search_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_words and len(w) >= 3]
 
         target_term = code_match.group(0) if code_match and code_match.group(0) not in stop_words else (search_tokens[0] if search_tokens else "")
@@ -235,6 +190,7 @@ class BIQueryEngine:
                 "action": None
             }
 
+        # ❓ 6. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
             "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
             "is_clarification": False,
