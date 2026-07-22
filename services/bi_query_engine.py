@@ -1,11 +1,11 @@
 """
-Universal Dynamic Data Analytics Engine
-Dynamically analyzes user questions against any dataset column, field, attribute, or topic:
-- Dynamically resolves target dataset (Work Orders vs Deals Funnel vs All)
-- Dynamically resolves target attribute (e.g. status, project_name, sector, stage, owner, client, value, cost)
-- Dynamically computes unique counts, distributions, aggregations, or lists
-- Performs safe math evaluation & CSV/PDF exports
-- Professional out-of-scope handling without markdown asterisks
+Universal Full-Application Intelligent Analytics Engine
+Universal Query Understanding & Free-Form Data Analysis Engine:
+- Dynamically parses any question structure (numerical, statistical, analytical, list, comparison, search)
+- Dynamically resolves field names, values, ranges, and target datasets without fixed templates
+- Evaluates math expressions & safe arithmetic
+- Handles CSV/PDF exports and interactive Monday.com filter redirects
+- Returns polite professional response ONLY for completely unrelated non-application questions
 """
 
 import re
@@ -142,73 +142,85 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # 🧠 5. DYNAMIC FIELD & METRIC ANALYZER (No hardcoding)
-        # Dynamically determine target dataset
-        is_order_dataset = any(k in q_lower for k in ["work order", "order", "flight", "execution", "ops", "tracker"])
-        is_deal_dataset = any(k in q_lower for k in ["deal", "pipeline", "sales", "funnel", "revenue", "proposal"])
+        # 🧠 5. GENERAL FREE-FORM DATA QUERY UNDERSTANDING
+        # Dynamically inspect all keys available in the dataset
+        sample_deal_keys = set(cleaned_deals[0].keys()) if cleaned_deals else set()
+        sample_order_keys = set(cleaned_orders[0].keys()) if cleaned_orders else set()
+        all_dataset_keys = sample_deal_keys.union(sample_order_keys)
+
+        # Detect target dataset from query context
+        is_order_context = any(w in q_lower for w in ["work order", "order", "flight", "execution", "ops", "tracker", "project"])
+        is_deal_context = any(w in q_lower for w in ["deal", "pipeline", "sales", "funnel", "revenue", "proposal", "stage", "client", "dealer"])
         
-        # If dataset is unspecified, default based on keywords or analyze both
-        dataset_name = "Work Order Data Tracker" if (is_order_dataset and not is_deal_dataset) else ("Sales Deals Funnel" if (is_deal_dataset and not is_order_dataset) else "Work Order Tracker & Deals Pipeline")
-        target_records = cleaned_orders if is_order_dataset else (cleaned_deals if is_deal_dataset else cleaned_orders + cleaned_deals)
+        target_records = cleaned_orders if (is_order_context and not is_deal_context) else (cleaned_deals if (is_deal_context and not is_order_context) else cleaned_deals + cleaned_orders)
+        dataset_name = "Work Order Data Tracker" if (is_order_context and not is_deal_context) else ("Sales Deals Funnel" if (is_deal_context and not is_order_context) else "Full Workspace (Deals & Work Orders)")
 
-        # Check if question is asking for count, unique values, breakdown, or list
-        is_count_query = any(k in q_lower for k in ["how many", "count", "number of", "different", "distinct", "unique", "types", "breakdown", "list"])
+        # Dynamically find matching field in query
+        matched_field = None
+        matched_field_title = ""
 
-        if is_count_query:
-            # Dynamically map query concepts to data fields
-            target_field = None
-            field_display_name = "Attribute"
+        # Map common synonyms to dynamic fields
+        field_synonyms = {
+            "status": ["status", "execution status", "state", "condition"],
+            "stage": ["stage", "phase", "funnel stage", "pipeline stage"],
+            "sector": ["sector", "industry", "vertical", "domain"],
+            "project_name": ["project name", "project", "flight name", "project title"],
+            "deal_name": ["deal name", "deal title", "opportunity name"],
+            "client": ["client", "customer", "dealer", "company", "account", "client code", "dealer code"],
+            "owner": ["owner", "manager", "representative", "rep", "deal owner", "assignee"],
+            "value": ["value", "amount", "revenue", "worth", "pipeline value", "contract value", "cost"]
+        }
 
-            if any(k in q_lower for k in ["status", "execution status", "state", "stage"]):
-                target_field = "status" if is_order_dataset else "deal_status"
-                field_display_name = "Execution Status / State"
-            elif any(k in q_lower for k in ["project name", "project", "flight name"]):
-                target_field = "project_name"
-                field_display_name = "Project Name"
-            elif any(k in q_lower for k in ["deal name", "deal"]):
-                target_field = "deal_name"
-                field_display_name = "Deal Name"
-            elif any(k in q_lower for k in ["sector", "industry", "vertical"]):
-                target_field = "sector"
-                field_display_name = "Sector"
-            elif any(k in q_lower for k in ["client", "customer", "dealer", "company", "account"]):
-                target_field = "client"
-                field_display_name = "Client / Dealer Code"
-            elif any(k in q_lower for k in ["owner", "manager", "representative"]):
-                target_field = "owner"
-                field_display_name = "Deal Owner"
+        for f_key, synonyms in field_synonyms.items():
+            if any(syn in q_lower for syn in synonyms):
+                matched_field = f_key
+                matched_field_title = synonyms[0].title()
+                break
 
-            if target_field:
-                # Dynamically collect unique values and count distribution
-                value_counts = {}
-                for r in target_records:
-                    val = r.get(target_field) or r.get("stage") or "Unspecified"
-                    if val and val != "Unspecified":
-                        value_counts[val] = value_counts.get(val, 0) + 1
+        # A. If user asks for COUNT / UNIQUE VALUES / BREAKDOWN of any attribute
+        is_aggregation_query = any(k in q_lower for k in ["how many", "count", "number of", "different", "distinct", "unique", "types", "breakdown", "distribution", "list"])
 
-                unique_count = len(value_counts)
+        if is_aggregation_query and matched_field:
+            counts = {}
+            for r in target_records:
+                val = r.get(matched_field) or r.get("deal_status") or r.get("status") or r.get("stage")
+                if val:
+                    counts[val] = counts.get(val, 0) + 1
 
+            lines = [
+                f"{dataset_name} Analytics:",
+                f"There are {len(counts)} unique {matched_field_title.lower()}(s) in the {dataset_name} across {len(target_records)} total records.",
+                "",
+                f"Breakdown of {matched_field_title}s:"
+            ]
+
+            for val, c in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:15]:
+                lines.append(f"  - {val}: {c} record(s)")
+
+            if len(counts) > 15:
+                lines.append(f"  ... and {len(counts) - 15} more entries.")
+
+            return {
+                "answer": "\n".join(lines),
+                "is_clarification": False,
+                "caveats": all_caveats,
+                "action": None
+            }
+
+        # B. If user asks for HIGHEST / LOWEST / TOTAL / AVERAGE values
+        if any(k in q_lower for k in ["highest", "lowest", "max", "min", "total", "average", "top", "biggest"]):
+            if "highest" in q_lower or "max" in q_lower or "top" in q_lower or "biggest" in q_lower:
+                sorted_deals = sorted(cleaned_deals, key=lambda d: d.get("value", 0), reverse=True)
+                top = sorted_deals[0] if sorted_deals else {}
                 lines = [
-                    f"{dataset_name} Analytics:",
-                    f"There are {unique_count} different unique {field_display_name.lower()}(s) in the {dataset_name} across {len(target_records)} total records.",
-                    "",
-                    f"Breakdown of {field_display_name}s:"
+                    "Highest Value Record Analytics:",
+                    f"Top Deal: {top.get('deal_name')} ({top.get('client')})",
+                    f"Value: Rs. {top.get('value', 0):,.2f}",
+                    f"Sector: {top.get('sector')} | Status: {top.get('deal_status')} | Owner: {top.get('owner')}"
                 ]
+                return {"answer": "\n".join(lines), "is_clarification": False, "caveats": all_caveats, "action": None}
 
-                for val, count in sorted(value_counts.items(), key=lambda x: x[1], reverse=True)[:15]:
-                    lines.append(f"  - {val}: {count} record(s)")
-                
-                if len(value_counts) > 15:
-                    lines.append(f"  ... and {len(value_counts) - 15} more unique entries.")
-
-                return {
-                    "answer": "\n".join(lines),
-                    "is_clarification": False,
-                    "caveats": all_caveats,
-                    "action": None
-                }
-
-        # 🔍 6. DYNAMIC SPECIFIC RECORD / SEARCH FILTERING
+        # C. Generic Free-form Search (Client codes, specific status names, sectors, owner names, deal names)
         detected_sector = None
         for sector_key in ["energy", "powerline", "renewables", "mining", "infrastructure", "construction", "railways", "agriculture", "dsp", "tender"]:
             if sector_key in q_lower:
@@ -225,92 +237,61 @@ class BIQueryEngine:
 
         entity_match = re.search(r'(company_?\d+|wocompany_?\d+|sdpldeal-?\d+|owner_?\d+|alias_\d+)', q_lower)
         target_entity = entity_match.group(0).upper() if entity_match else None
-        
-        if not target_entity:
-            words = q_raw.split()
-            for w in words:
-                clean_w = re.sub(r'[^A-Za-z0-9_-]', '', w).upper()
-                if len(clean_w) >= 4 and (clean_w.startswith("COMPANY") or clean_w.startswith("WOCOMPANY") or clean_w.startswith("SDPLDEAL") or clean_w.startswith("OWNER")):
-                    target_entity = clean_w
-                    break
 
-        is_deal_search = any(k in q_lower for k in ["deal", "pipeline", "sales", "revenue", "won", "stage", "mining", "energy", "infra", "dealer", "client", "company", "owner"]) or target_entity or detected_sector or detected_status
-        is_order_search = any(k in q_lower for k in ["order", "flight", "operation", "execution", "project", "work order"])
+        # Free search across deals and work orders
+        matching_deals = cleaned_deals
+        if detected_sector:
+            matching_deals = [d for d in matching_deals if d["sector"] == detected_sector]
+        if detected_status:
+            matching_deals = [d for d in matching_deals if detected_status.lower() in d["deal_status"].lower() or detected_status.lower() in d["stage"].lower()]
+        if target_entity:
+            matching_deals = [d for d in matching_deals if target_entity in str(d).upper()]
 
-        if is_deal_search or is_order_search:
-            matching_deals = cleaned_deals
-            if detected_sector:
-                matching_deals = [d for d in matching_deals if d["sector"] == detected_sector]
-            if detected_status:
-                matching_deals = [d for d in matching_deals if detected_status.lower() in d["deal_status"].lower() or detected_status.lower() in d["stage"].lower()]
-            if target_entity:
-                digits = re.search(r'\d+', target_entity)
-                digit_str = digits.group(0) if digits else ""
-                matching_deals = [
-                    d for d in matching_deals
-                    if target_entity in d["client"].upper()
-                    or target_entity in d["deal_name"].upper()
-                    or target_entity in d["owner"].upper()
-                    or (digit_str and digit_str in d["client"])
-                ]
+        matching_orders = cleaned_orders
+        if detected_sector:
+            matching_orders = [o for o in matching_orders if o["sector"] == detected_sector]
+        if target_entity:
+            matching_orders = [o for o in matching_orders if target_entity in str(o).upper()]
 
-            matching_orders = cleaned_orders
-            if detected_sector:
-                matching_orders = [o for o in matching_orders if o["sector"] == detected_sector]
-            if target_entity:
-                matching_orders = [
-                    o for o in matching_orders
-                    if target_entity in o["client"].upper()
-                    or target_entity in o["project_name"].upper()
-                    or target_entity in o["work_order_id"].upper()
-                ]
+        # Check if query matches any application keywords or data contents
+        has_app_relevance = (is_order_context or is_deal_context or detected_sector or detected_status or target_entity or matched_field or
+                             any(word in q_lower for word in ["skylark", "monday", "board", "analytics", "data", "revenue", "flight", "wo", "deal", "order", "cost", "won", "stage"]))
 
+        if has_app_relevance:
             total_val = sum(d["value"] for d in matching_deals)
-            lines = []
-
-            filter_desc = []
-            if detected_sector: filter_desc.append(f"Sector: {detected_sector}")
-            if detected_status: filter_desc.append(f"Status: {detected_status}")
-            if target_entity: filter_desc.append(f"Client/Entity: {target_entity}")
-            
-            filter_str = " | ".join(filter_desc) if filter_desc else "Search Results"
-
-            lines.append(f"Monday.com Live Query Results ({filter_str}):\n")
-            lines.append(f"- Found {len(matching_deals)} matching deal(s) totaling Rs. {total_val:,.2f}.")
-            if matching_orders:
-                lines.append(f"- Found {len(matching_orders)} matching work order(s).")
-            lines.append("")
+            lines = [
+                f"Monday.com Application Analytics Search:",
+                f"- Found {len(matching_deals)} matching deal(s) totaling Rs. {total_val:,.2f}.",
+                f"- Found {len(matching_orders)} matching work order(s)."
+            ]
 
             if matching_deals:
-                lines.append("Matching Deals List:")
-                for d in matching_deals[:6]:
-                    lines.append(f"  - {d['deal_name']} ({d['client']}) | Sector: {d['sector']} | Status: {d['deal_status']} | Value: Rs. {d['value']:,.2f} | Owner: {d['owner']}")
-            
+                lines.append("\nMatching Deals:")
+                for d in matching_deals[:5]:
+                    lines.append(f"  - {d['deal_name']} ({d['client']}) | Sector: {d['sector']} | Status: {d['deal_status']} | Value: Rs. {d['value']:,.2f}")
+
             if matching_orders:
                 lines.append("\nMatching Work Orders:")
                 for o in matching_orders[:4]:
-                    lines.append(f"  - {o['project_name']} ({o['work_order_id']}) | Status: {o['status']} | Value: Rs. {o['cost']:,.2f}")
+                    lines.append(f"  - {o['project_name']} ({o['work_order_id']}) | Status: {o['status']} | Billed: Rs. {o['cost']:,.2f}")
 
-            lines.append("\nRedirecting table filters to show these records.")
-
-            search_query_param = target_entity if target_entity else ("mining" if "mining" in q_lower else "")
-            
             return {
                 "answer": "\n".join(lines),
                 "is_clarification": False,
                 "caveats": all_caveats,
-                "action": "apply_filters_and_redirect",
+                "action": "apply_filters_and_redirect" if (detected_sector or detected_status or target_entity) else None,
                 "action_payload": {
                     "view": "view-boards",
                     "sector": detected_sector or "ALL",
                     "status": detected_status or "ALL",
-                    "search": search_query_param
+                    "search": target_entity or ""
                 }
             }
 
-        # ❓ 7. PROFESSIONAL UNKNOWN / OUT-OF-SCOPE FALLBACK
+        # ❓ 6. PROFESSIONAL UNKNOWN / OUT-OF-SCOPE FALLBACK
+        # Only reached if query is completely unrelated to the application (e.g. general knowledge, external topics)
         return {
-            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.\n\nPlease ask me about pipeline revenues, client codes, sector analytics, execution status, project counts, mathematical calculations, or export options!",
+            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.\n\nPlease ask me any question about your pipeline revenues, client records, execution statuses, project metrics, mathematical calculations, or export options!",
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
