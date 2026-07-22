@@ -1,6 +1,12 @@
 """
-Universal Gemini AI Power-Engine for BI Analytics
-Integrates Google Gemini 2.5 Flash API with precise target entity resolution & exact filtering
+Universal Robust Business Intelligence Engine
+Features:
+- Smart Token Cleaning & Stopword Filter (eliminates single-letter matching bugs like 'i', 'a', 'the')
+- Dynamic Field Analytics (Status, Sector, Project Name, Client, Owner, Stage)
+- Math Expression Evaluation
+- PDF/CSV Export Actions
+- Direct Monday.com Filter Redirects
+- Professional Out-of-Scope Fallback
 """
 
 import os
@@ -24,6 +30,17 @@ class BIQueryEngine:
     def set_security_guard(self, security_guard):
         self.security_guard = security_guard
 
+    def extract_meaningful_tokens(self, text: str) -> list:
+        """Strips out all query stop-words and single/double character noise words to isolate real entity/sector terms."""
+        stop_words = {
+            "what", "is", "the", "total", "billed", "amount", "amounts", "done", "by", "for", "in", "of", 
+            "how", "many", "how", "much", "show", "list", "deals", "orders", "work", "tracker", "funnel", 
+            "pipeline", "data", "different", "unique", "projects", "project", "need", "tell", "me", "give", 
+            "all", "find", "search", "lookup", "get", "with", "status", "stage", "sector", "value", "cost", "i", "a", "an"
+        }
+        tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', text.lower()).split() if w not in stop_words and len(w) >= 3]
+        return tokens
+
     def analyze(self, raw_deals: list, raw_orders: list, user_query: str) -> dict:
         cleaned_deals, deal_caveats = self.resilience.process_deals(raw_deals)
         cleaned_orders, order_caveats = self.resilience.process_work_orders(raw_orders)
@@ -32,7 +49,7 @@ class BIQueryEngine:
         q_raw = user_query.strip()
         q_lower = q_raw.lower()
 
-        # 📄 EXPORT CSV / PDF INTENT HANDLER
+        # 📄 1. EXPORT CSV / PDF INTENT HANDLER
         is_export_csv = any(k in q_lower for k in ["export csv", "download csv", "generate csv", "csv report", "save csv"])
         is_export_pdf = any(k in q_lower for k in ["export pdf", "download pdf", "generate pdf", "pdf report", "save pdf", "print pdf"])
 
@@ -46,7 +63,7 @@ class BIQueryEngine:
                 "action_payload": {"type": export_type.lower()}
             }
 
-        # 🛡️ SECURITY & WAF AUDIT INTENT HANDLER
+        # 🛡️ 2. SECURITY & WAF AUDIT INTENT HANDLER
         if any(k in q_lower for k in ["security audit", "waf status", "attack log", "audit log", "blocked attacks"]):
             audit_logs = self.security_guard.get_audit_logs() if self.security_guard else []
             blocked_count = sum(1 for log in audit_logs if "BLOCKED" in log.get("event_type", ""))
@@ -71,7 +88,7 @@ class BIQueryEngine:
                 "action_payload": {"view": "view-security"}
             }
 
-        # 🤖 REAL AI ENGINE (Google Gemini API Integration)
+        # 🤖 3. REAL AI ENGINE (Google Gemini API Integration)
         if self.client:
             try:
                 data_context = {
@@ -121,12 +138,10 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 DETERMINISTIC TARGET MATCHING ENGINE (Fallback)
-        # Smart multi-token extraction: e.g. "Alias_160", "Mining", "Sakura"
-        stop_words = {"what", "is", "the", "total", "billed", "amount", "amounts", "done", "by", "for", "in", "of", "how", "many", "how", "much", "show", "list", "deals", "orders", "work", "tracker", "funnel", "pipeline", "data", "different", "unique", "projects", "project", "need"}
-        search_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_words]
+        # 🧠 4. ROBUST DETERMINISTIC SEARCH ENGINE (Zero single-token fallback bugs)
+        search_tokens = self.extract_meaningful_tokens(q_raw)
 
-        # Filter orders & deals matching ALL search tokens
+        # Filter deals & work orders matching ALL meaningful search tokens
         matching_orders = cleaned_orders
         matching_deals = cleaned_deals
 
@@ -134,35 +149,45 @@ class BIQueryEngine:
             for t in search_tokens:
                 matching_orders = [o for o in matching_orders if t in str(o).lower()]
                 matching_deals = [d for d in matching_deals if t in str(d).lower()]
+        else:
+            # If no meaningful tokens remain, user asked a general question or summary
+            matching_orders = []
+            matching_deals = []
 
         total_billed = sum(o.get("cost", 0) for o in matching_orders)
         total_val = sum(d.get("value", 0) for d in matching_deals)
 
-        label = " ".join([t.title() for t in search_tokens]) if search_tokens else "Dataset"
+        label = " ".join([t.title() for t in search_tokens]) if search_tokens else "Workspace"
 
-        lines = [f"Financial Analytics Summary for '{label}':\n"]
+        if matching_orders or matching_deals:
+            lines = [f"Financial Analytics Summary for '{label}':\n"]
 
-        if matching_orders:
-            lines.append(f"- Total Billed Amount in Work Orders: Rs. {total_billed:,.2f} across {len(matching_orders)} matching project(s).")
-            lines.append("  Matching Work Orders List:")
-            for o in matching_orders[:10]:
-                lines.append(f"    - {o.get('project_name')} ({o.get('work_order_id')}) | Sector: {o.get('sector')} | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
-            if len(matching_orders) > 10:
-                lines.append(f"    ... and {len(matching_orders) - 10} more projects.")
+            if matching_orders:
+                lines.append(f"- Total Billed Amount in Work Orders: Rs. {total_billed:,.2f} across {len(matching_orders)} matching project(s).")
+                lines.append("  Matching Work Orders List:")
+                for o in matching_orders[:10]:
+                    lines.append(f"    - {o.get('project_name')} ({o.get('work_order_id')}) | Sector: {o.get('sector')} | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
+                if len(matching_orders) > 10:
+                    lines.append(f"    ... and {len(matching_orders) - 10} more projects.")
 
-        if matching_deals:
-            lines.append(f"\n- Total Pipeline Value in Sales Deals: Rs. {total_val:,.2f} across {len(matching_deals)} matching deal(s).")
-            lines.append("  Matching Sales Deals List:")
-            for d in matching_deals[:10]:
-                lines.append(f"    - {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
-            if len(matching_deals) > 10:
-                lines.append(f"    ... and {len(matching_deals) - 10} more deals.")
+            if matching_deals:
+                lines.append(f"\n- Total Pipeline Value in Sales Deals: Rs. {total_val:,.2f} across {len(matching_deals)} matching deal(s).")
+                lines.append("  Matching Sales Deals List:")
+                for d in matching_deals[:10]:
+                    lines.append(f"    - {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
+                if len(matching_deals) > 10:
+                    lines.append(f"    ... and {len(matching_deals) - 10} more deals.")
 
-        if not matching_orders and not matching_deals:
-            lines.append(f"No active deals or work orders found matching '{label}'.")
+            return {
+                "answer": "\n".join(lines),
+                "is_clarification": False,
+                "caveats": all_caveats,
+                "action": None
+            }
 
+        # ❓ 5. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
-            "answer": "\n".join(lines),
+            "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
