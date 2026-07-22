@@ -1,9 +1,9 @@
 """
 Universal Omniscient Business Intelligence Engine
 Handles:
+- PDF / CSV export triggers across ALL query formats (e.g. 'create me a pdf of sakura deals', 'pdf of deals', 'export csv')
 - System, Security, WAF, Architecture, Authentication, and User Guide queries
 - Math calculations & percentages
-- CSV & PDF export triggers
 - Dynamic entity lookups, amounts, sectors, statuses, and counts
 - Universal string & symbol normalization
 """
@@ -20,7 +20,6 @@ class BIQueryEngine:
         self.security_guard = security_guard
         self.api_key = os.environ.get("GEMINI_API_KEY", "")
         
-        # Load config.json if present
         config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
         if os.path.exists(config_path):
             try:
@@ -71,21 +70,36 @@ class BIQueryEngine:
         q_lower = q_raw.lower()
         q_normalized = self.normalize_text(q_raw)
 
-        # 📄 1. EXPORT CSV / PDF INTENT HANDLER
-        is_export_csv = any(k in q_lower for k in ["export csv", "download csv", "generate csv", "csv report", "save csv"])
-        is_export_pdf = any(k in q_lower for k in ["export pdf", "download pdf", "generate pdf", "pdf report", "save pdf", "print pdf"])
+        # 📄 1. UNIVERSAL EXPORT CSV / PDF INTENT HANDLER
+        is_pdf_intent = any(k in q_lower for k in ["pdf", "print pdf", "download pdf", "generate pdf", "save pdf", "make a pdf", "create me a pdf", "create pdf"])
+        is_csv_intent = any(k in q_lower for k in ["csv", "export csv", "download csv", "generate csv", "save csv", "create csv"])
 
-        if is_export_csv or is_export_pdf:
-            export_type = "CSV" if is_export_csv else "PDF"
+        if is_pdf_intent or is_csv_intent:
+            export_type = "PDF" if is_pdf_intent else "CSV"
+            
+            # Extract target entity if specified (e.g. "sakura")
+            stop_export_words = {"create", "me", "a", "pdf", "csv", "of", "export", "download", "generate", "save", "make", "deals", "orders", "report", "file", "list"}
+            search_entity_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_export_words and len(w) >= 3]
+            entity_label = " ".join([t.title() for t in search_entity_tokens]) if search_entity_tokens else "All Workspace Data"
+
+            lines = [
+                f"{export_type} Export Generated for '{entity_label}':\n",
+                f"- I have prepared your report for {entity_label}.",
+                f"- Opening browser {export_type} print / download window now."
+            ]
+
             return {
-                "answer": f"{export_type} Export Request:\n\nI have generated your requested {export_type} report based on the current live deals and work orders dataset. Downloading file immediately.",
+                "answer": "\n".join(lines),
                 "is_clarification": False,
                 "caveats": all_caveats,
                 "action": "export",
-                "action_payload": {"type": export_type.lower()}
+                "action_payload": {
+                    "type": export_type.lower(),
+                    "entity": entity_label
+                }
             }
 
-        # 🛡️ 2. SYSTEM SECURITY & ARCHITECTURE INTENT HANDLER (Matches queries like "is this application secure?", "security features", "how is password saved")
+        # 🛡️ 2. SYSTEM SECURITY & ARCHITECTURE INTENT HANDLER
         is_security_query = any(k in q_lower for k in ["security", "secure", "waf", "attack", "audit", "log", "blocked", "checksum", "tamper", "owasp", "encryption", "password", "auth", "hashing", "safe", "protection"])
 
         if is_security_query and not any(w in q_lower for w in ["deal", "order", "company", "project", "sakura", "billed"]):
@@ -120,17 +134,7 @@ class BIQueryEngine:
         system_knowledge_base = {
             "application_metadata": {
                 "name": "Skylark Drones Monday.com Business Intelligence Agent",
-                "version": "2.5 Production",
-                "purpose": "Real-time cross-board BI analytics, executive briefings, dynamic board discovery, and enterprise security for Skylark Drones."
-            },
-            "security_architecture": {
-                "is_secure": True,
-                "authentication": "AEGIS Cyberpunk Glassmorphic Authentication Portal using SHA-256 pre-transmission client-side hashing via browser Web Crypto API (crypto.subtle.digest). Plaintext passwords are NEVER sent across the network.",
-                "credentials": "Username: Skylark | Password: Drones (client SHA-256 pre-hashed before POST body transmission)",
-                "waf_protection": "OWASP Top 10 WAF Security Guard actively scanning for Prompt Injection, XSS scripts, and SQLi patterns.",
-                "rate_limiting": "Token-bucket IP Rate Limiter enforcing 45 requests per 60-second window per IP address.",
-                "audit_logger": "Cryptographic tamper-evident SHA-256 audit logger recording all authentication events, queries, and security violations.",
-                "live_audit_logs": audit_logs[-5:]
+                "version": "2.5 Production"
             }
         }
 
@@ -147,7 +151,7 @@ class BIQueryEngine:
                     "Analyze the user's question with extreme precision across all letters, symbols, numbers, and system architecture.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. SECURITY & APPLICATION QUESTIONS (e.g. 'is this application secure?'): Answer yes, and explain the SHA-256 pre-hashing, OWASP WAF, IP rate limiter, and audit logger.\n"
+                    "2. EXPORT REQUESTS (e.g. 'create me a pdf of sakura deals'): State that the PDF print dialog / CSV download has been generated and triggered for the user.\n"
                     "3. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
                     "4. Keep responses clean, precise, and professional."
                 )
