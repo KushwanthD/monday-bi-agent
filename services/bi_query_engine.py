@@ -1,12 +1,8 @@
 """
-Universal Robust Business Intelligence Engine
-Features:
-- Smart Token Cleaning & Stopword Filter (eliminates single-letter matching bugs like 'i', 'a', 'the')
-- Dynamic Field Analytics (Status, Sector, Project Name, Client, Owner, Stage)
-- Math Expression Evaluation
-- PDF/CSV Export Actions
-- Direct Monday.com Filter Redirects
-- Professional Out-of-Scope Fallback
+Universal Deep-Search BI Engine
+Performs ANY-MATCH deep scanning across all raw item records, raw GraphQL column values,
+raw CSV fields, deal details, work order IDs, client codes, and serial numbers.
+Never rejects application queries.
 """
 
 import os
@@ -30,15 +26,10 @@ class BIQueryEngine:
     def set_security_guard(self, security_guard):
         self.security_guard = security_guard
 
-    def extract_meaningful_tokens(self, text: str) -> list:
-        """Strips out all query stop-words and single/double character noise words to isolate real entity/sector terms."""
-        stop_words = {
-            "what", "is", "the", "total", "billed", "amount", "amounts", "done", "by", "for", "in", "of", 
-            "how", "many", "how", "much", "show", "list", "deals", "orders", "work", "tracker", "funnel", 
-            "pipeline", "data", "different", "unique", "projects", "project", "need", "tell", "me", "give", 
-            "all", "find", "search", "lookup", "get", "with", "status", "stage", "sector", "value", "cost", "i", "a", "an"
-        }
-        tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', text.lower()).split() if w not in stop_words and len(w) >= 3]
+    def extract_keywords(self, text: str) -> list:
+        """Extracts key search terms (3+ chars) excluding query words like 'what', 'are', 'the'."""
+        stop_words = {"what", "are", "the", "does", "have", "has", "is", "for", "in", "of", "how", "many", "much", "show", "list", "deals", "orders", "data", "tell", "me", "give", "find", "search", "lookup", "get", "with"}
+        tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', text.lower()).split() if w not in stop_words and len(w) >= 2]
         return tokens
 
     def analyze(self, raw_deals: list, raw_orders: list, user_query: str) -> dict:
@@ -92,28 +83,18 @@ class BIQueryEngine:
         if self.client:
             try:
                 data_context = {
-                    "sales_deals_summary": {
-                        "total_deals_count": len(cleaned_deals),
-                        "total_pipeline_value": sum(d.get("value", 0) for d in cleaned_deals),
-                        "deals_data": cleaned_deals
-                    },
-                    "work_orders_summary": {
-                        "total_work_orders_count": len(cleaned_orders),
-                        "total_billed_cost": sum(o.get("cost", 0) for o in cleaned_orders),
-                        "work_orders_data": cleaned_orders
-                    }
+                    "sales_deals_data": cleaned_deals,
+                    "work_orders_data": cleaned_orders
                 }
 
                 system_instruction = (
                     "You are the official Skylark Drones Executive Business Intelligence AI Assistant.\n"
-                    "Your goal is to answer the user's questions with 100% precision based on the provided live JSON data context.\n"
+                    "Search thorough all JSON records (sales_deals_data and work_orders_data) to answer the user question.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. If the user asks for total billed amounts, costs, or values for a specific entity or filter (e.g., 'Alias_160 mining projects billed amount'), ONLY match records that actually contain that specific entity and sector. Calculate the exact sum for matching records and list ONLY those matching items.\n"
-                    "3. Do not list unrelated items or dump all records.\n"
-                    "4. If the user asks something completely unrelated to the application or business data (e.g. sports, weather), politely state: "
-                    "'Sorry! I do not have information regarding that in the application...'\n"
-                    "5. Keep responses clean, concise, and professional."
+                    "2. If the user asks for serial numbers, work order IDs, client codes, deal names, status, costs, values, or ANY specific detail about a project (e.g. 'Sakura'), search all fields across all matching items and list every piece of relevant information found.\n"
+                    "3. If a specific field (like a physical hardware serial number) is not stored in the board, explicitly mention the available identifiers (e.g. Work Order IDs: SDPLDEAL-002, SDPLDEAL-003, Client Code: COMPANY046) and list all data present for that entity.\n"
+                    "4. If the user asks something completely unrelated to business, drones, or application data (e.g., sports, weather), politely state that you only answer application queries."
                 )
 
                 prompt = f"Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
@@ -138,56 +119,54 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 4. ROBUST DETERMINISTIC SEARCH ENGINE (Zero single-token fallback bugs)
-        search_tokens = self.extract_meaningful_tokens(q_raw)
+        # 🧠 4. DEEP DEEP-SEARCH ENGINE (ANY-MATCH OVER ALL FIELDS & COLS)
+        keywords = self.extract_keywords(q_raw)
+        
+        # Deep search across every single record string representation
+        matching_orders = []
+        matching_deals = []
 
-        # Filter deals & work orders matching ALL meaningful search tokens
-        matching_orders = cleaned_orders
-        matching_deals = cleaned_deals
+        if keywords:
+            # Match records that contain ANY of the key subject terms (e.g. "sakura")
+            primary_term = keywords[-1] if len(keywords) > 0 else "" # Usually entity name is last keyword (e.g., "sakura")
+            
+            for o in cleaned_orders:
+                rec_str = json.dumps(o).lower()
+                if any(kw in rec_str for kw in keywords):
+                    matching_orders.append(o)
 
-        if search_tokens:
-            for t in search_tokens:
-                matching_orders = [o for o in matching_orders if t in str(o).lower()]
-                matching_deals = [d for d in matching_deals if t in str(d).lower()]
-        else:
-            # If no meaningful tokens remain, user asked a general question or summary
-            matching_orders = []
-            matching_deals = []
+            for d in cleaned_deals:
+                rec_str = json.dumps(d).lower()
+                if any(kw in rec_str for kw in keywords):
+                    matching_deals.append(d)
 
-        total_billed = sum(o.get("cost", 0) for o in matching_orders)
-        total_val = sum(d.get("value", 0) for d in matching_deals)
+        lines = [f"Application Record Deep-Search for '{q_raw}':\n"]
 
-        label = " ".join([t.title() for t in search_tokens]) if search_tokens else "Workspace"
+        if matching_orders:
+            lines.append(f"Work Order Tracker Records ({len(matching_orders)} matching):")
+            for o in matching_orders[:15]:
+                wo_id = o.get('work_order_id') or o.get('id') or 'N/A'
+                name = o.get('project_name') or 'N/A'
+                client = o.get('client') or 'N/A'
+                status = o.get('status') or 'N/A'
+                cost = o.get('cost', 0)
+                lines.append(f"  - Project: {name} | Work Order ID / Ref: {wo_id} | Client: {client} | Status: {status} | Billed: Rs. {cost:,.2f}")
 
-        if matching_orders or matching_deals:
-            lines = [f"Financial Analytics Summary for '{label}':\n"]
+        if matching_deals:
+            lines.append(f"\nSales Deals Funnel Records ({len(matching_deals)} matching):")
+            for d in matching_deals[:15]:
+                name = d.get('deal_name') or 'N/A'
+                client = d.get('client') or 'N/A'
+                sector = d.get('sector') or 'N/A'
+                status = d.get('deal_status') or 'N/A'
+                val = d.get('value', 0)
+                lines.append(f"  - Deal: {name} | Account/Client Code: {client} | Sector: {sector} | Status: {status} | Pipeline Value: Rs. {val:,.2f}")
 
-            if matching_orders:
-                lines.append(f"- Total Billed Amount in Work Orders: Rs. {total_billed:,.2f} across {len(matching_orders)} matching project(s).")
-                lines.append("  Matching Work Orders List:")
-                for o in matching_orders[:10]:
-                    lines.append(f"    - {o.get('project_name')} ({o.get('work_order_id')}) | Sector: {o.get('sector')} | Status: {o.get('status')} | Billed: Rs. {o.get('cost', 0):,.2f}")
-                if len(matching_orders) > 10:
-                    lines.append(f"    ... and {len(matching_orders) - 10} more projects.")
+        if not matching_orders and not matching_deals:
+            lines.append("No records matching your search terms were found in the application workspace.")
 
-            if matching_deals:
-                lines.append(f"\n- Total Pipeline Value in Sales Deals: Rs. {total_val:,.2f} across {len(matching_deals)} matching deal(s).")
-                lines.append("  Matching Sales Deals List:")
-                for d in matching_deals[:10]:
-                    lines.append(f"    - {d.get('deal_name')} ({d.get('client')}) | Sector: {d.get('sector')} | Status: {d.get('deal_status')} | Value: Rs. {d.get('value', 0):,.2f}")
-                if len(matching_deals) > 10:
-                    lines.append(f"    ... and {len(matching_deals) - 10} more deals.")
-
-            return {
-                "answer": "\n".join(lines),
-                "is_clarification": False,
-                "caveats": all_caveats,
-                "action": None
-            }
-
-        # ❓ 5. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
-            "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
+            "answer": "\n".join(lines),
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
