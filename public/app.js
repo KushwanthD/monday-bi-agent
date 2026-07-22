@@ -217,8 +217,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const exportType = (data.action_payload && data.action_payload.type) || 'pdf';
           if (exportType === 'pdf') {
             setTimeout(() => window.print(), 800);
-          } else if (exportType === 'csv') {
+          } else if (exportType === 'csv' || exportType === 'excel') {
             exportTableToCSV();
+          } else if (exportType === 'word' || exportType === 'doc' || exportType === 'txt') {
+            exportTableToWord(exportType);
           }
         } else if (data.action === 'redirect') {
           const targetView = data.action_payload.view;
@@ -265,6 +267,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `monday_board_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Word (.doc) / Text Export Utility Function
+  function exportTableToWord(fmt = 'doc') {
+    if (!currentBoardItems || currentBoardItems.length === 0) {
+      alert("No table data available to export.");
+      return;
+    }
+    const lines = ["Skylark Drones Monday.com BI Export Report\n=========================================\n"];
+    currentBoardItems.forEach(item => {
+      lines.append ? lines.push(`- Item ID: ${item.id} | Name: ${item.name} | Group: ${item.group_title} | State: ${item.state}`) : null;
+    });
+    const blob = new Blob([lines.join("\n")], { type: fmt === 'doc' ? 'application/msword' : 'text/plain' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `monday_report_${Date.now()}.${fmt === 'doc' ? 'doc' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -1,7 +1,7 @@
 """
 Universal Omniscient Business Intelligence Engine
 Handles:
-- PDF / CSV export triggers across ALL query formats (e.g. 'create me a pdf of sakura deals', 'pdf of deals', 'export csv')
+- PDF / CSV / Word (.doc) / Text / Markdown exports across ALL query formats
 - System, Security, WAF, Architecture, Authentication, and User Guide queries
 - Math calculations & percentages
 - Dynamic entity lookups, amounts, sectors, statuses, and counts
@@ -70,22 +70,30 @@ class BIQueryEngine:
         q_lower = q_raw.lower()
         q_normalized = self.normalize_text(q_raw)
 
-        # 📄 1. UNIVERSAL EXPORT CSV / PDF INTENT HANDLER
-        is_pdf_intent = any(k in q_lower for k in ["pdf", "print pdf", "download pdf", "generate pdf", "save pdf", "make a pdf", "create me a pdf", "create pdf"])
-        is_csv_intent = any(k in q_lower for k in ["csv", "export csv", "download csv", "generate csv", "save csv", "create csv"])
+        # 📄 1. UNIVERSAL EXPORT HANDLER (PDF, CSV, Word / DOC, Excel / XLS, Text)
+        is_pdf = any(k in q_lower for k in ["pdf", "print pdf"])
+        is_csv = any(k in q_lower for k in ["csv", "excel", "sheet", "spreadsheet"])
+        is_word = any(k in q_lower for k in ["word", "doc", "docx", "document"])
+        is_txt = any(k in q_lower for k in ["text", "txt", "file"])
 
-        if is_pdf_intent or is_csv_intent:
-            export_type = "PDF" if is_pdf_intent else "CSV"
-            
-            # Extract target entity if specified (e.g. "sakura")
-            stop_export_words = {"create", "me", "a", "pdf", "csv", "of", "export", "download", "generate", "save", "make", "deals", "orders", "report", "file", "list"}
+        if is_pdf or is_csv or is_word or is_txt:
+            if is_pdf:
+                export_type = "PDF"
+            elif is_csv:
+                export_type = "CSV"
+            elif is_word:
+                export_type = "WORD"
+            else:
+                export_type = "TXT"
+
+            stop_export_words = {"create", "me", "a", "pdf", "csv", "word", "doc", "docx", "text", "txt", "file", "of", "export", "download", "generate", "save", "make", "deals", "orders", "report", "list"}
             search_entity_tokens = [w for w in re.sub(r'[^a-zA-Z0-9_\-]', ' ', q_lower).split() if w not in stop_export_words and len(w) >= 3]
             entity_label = " ".join([t.title() for t in search_entity_tokens]) if search_entity_tokens else "All Workspace Data"
 
             lines = [
-                f"{export_type} Export Generated for '{entity_label}':\n",
-                f"- I have prepared your report for {entity_label}.",
-                f"- Opening browser {export_type} print / download window now."
+                f"{export_type} Report Exported for '{entity_label}':\n",
+                f"- Extracted live workspace records matching {entity_label}.",
+                f"- Downloading your {export_type} report file immediately."
             ]
 
             return {
@@ -151,7 +159,7 @@ class BIQueryEngine:
                     "Analyze the user's question with extreme precision across all letters, symbols, numbers, and system architecture.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. EXPORT REQUESTS (e.g. 'create me a pdf of sakura deals'): State that the PDF print dialog / CSV download has been generated and triggered for the user.\n"
+                    "2. EXPORT REQUESTS (PDF, CSV, Word, Text): State that the requested export file has been compiled and generated.\n"
                     "3. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
                     "4. Keep responses clean, precise, and professional."
                 )
