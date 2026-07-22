@@ -1,11 +1,12 @@
 """
 Universal Full-Application Business Intelligence & Analytics Engine
 Handles:
+- Specific field & count queries (e.g. "how many project names in work order tracker")
 - Math & Math Expression evaluation (safe arithmetic)
 - PDF & CSV Export generation triggers
 - Dynamic Dealer / Client / Sector / Status search & tabular item listing
 - Navigation & Monday.com Filter redirect actions
-- Professional out-of-scope / fallback responses ("Sorry! I am only configured to answer queries regarding...")
+- Professional out-of-scope / fallback responses without Markdown symbols
 """
 
 import re
@@ -23,21 +24,18 @@ class BIQueryEngine:
     def safe_eval_math(self, expr: str):
         """Safely evaluates mathematical expressions (arithmetic, percentages, sum, etc.)"""
         try:
-            # Clean and sanitize expression
             clean_expr = expr.lower().replace('x', '*').replace('÷', '/').replace('^', '**')
             clean_expr = re.sub(r'[^0-9\+\-\*\/\(\)\.\s\%]', '', clean_expr)
             if not clean_expr.strip():
                 return None
             
-            # Handle percentage calculations e.g. 15% of 250000
             pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:of)?\s*(\d+(?:\.\d+)?)', expr.lower())
             if pct_match:
                 pct = float(pct_match.group(1))
                 val = float(pct_match.group(2))
                 res = (pct / 100.0) * val
-                return f"{pct}% of {val:,.2f} = **{res:,.2f}**"
+                return f"{pct}% of {val:,.2f} = {res:,.2f}"
 
-            # Direct eval of safe math tokens
             allowed_names = {"abs": abs, "round": round, "min": min, "max": max, "sum": sum}
             code = compile(clean_expr, "<string>", "eval")
             for name in code.co_names:
@@ -45,7 +43,7 @@ class BIQueryEngine:
                     return None
             val = eval(code, {"__builtins__": {}}, allowed_names)
             if isinstance(val, (int, float)):
-                return f"Math Result: `{clean_expr.strip()}` = **{val:,.2f}**"
+                return f"Math Result: {clean_expr.strip()} = {val:,.2f}"
         except Exception:
             return None
         return None
@@ -61,54 +59,96 @@ class BIQueryEngine:
         action = None
         action_payload = {}
 
-        # 🧮 1. MATHEMATICAL CALCULATION DETECTOR
-        # Check if query asks for math or arithmetic
-        math_keywords = ["calculate", "math", "add", "multiply", "divide", "subtract", "sum of", "percent of", "% of", "plus", "minus", "times"]
-        is_math_query = any(k in q_lower for k in math_keywords) or re.search(r'^\s*[\d\(\)\.\s\+\-\*\/\%]+\s*$', q_lower)
-        if is_math_query:
-            # Extract math expression
-            expr_candidate = re.sub(r'(?i)(calculate|what is|compute|eval|math|the|sum of|\% of|of)', '', q_raw).strip()
-            math_result = self.safe_eval_math(expr_candidate) or self.safe_eval_math(q_raw)
-            if math_result:
+        # 🎯 1. SPECIFIC COUNT / PROJECT NAMES / METRIC INTENT
+        # Handle queries like "how many different project names are there in work order data tracker"
+        if ("how many" in q_lower or "count" in q_lower or "list all" in q_lower or "unique" in q_lower) and ("project" in q_lower or "work order" in q_lower or "flight" in q_lower or "name" in q_lower or "deal" in q_lower or "dealer" in q_lower or "client" in q_lower):
+            if "work order" in q_lower or "project" in q_lower or "tracker" in q_lower:
+                project_names = set(o["project_name"] for o in cleaned_orders if o.get("project_name"))
+                total_projects = len(project_names)
+                
+                lines = [
+                    f"Work Order Tracker Analytics:",
+                    f"There are {total_projects} unique project names in the Work Order Tracker board across {len(cleaned_orders)} total tracked work orders.",
+                    "",
+                    "Unique Project Names List:"
+                ]
+                for p in sorted(list(project_names))[:15]:
+                    lines.append(f"  - {p}")
+                if len(project_names) > 15:
+                    lines.append(f"  ... and {len(project_names) - 15} more project names.")
+                
                 return {
-                    "answer": f"🧮 **Calculation Result:**\n\n{math_result}",
+                    "answer": "\n".join(lines),
+                    "is_clarification": False,
+                    "caveats": all_caveats,
+                    "action": None
+                }
+            elif "deal" in q_lower or "pipeline" in q_lower or "client" in q_lower or "dealer" in q_lower:
+                client_names = set(d["client"] for d in cleaned_deals if d.get("client"))
+                deal_names = set(d["deal_name"] for d in cleaned_deals if d.get("deal_name"))
+                
+                lines = [
+                    f"Sales Deals Funnel Analytics:",
+                    f"There are {len(deal_names)} unique deal names and {len(client_names)} unique client/dealer codes across {len(cleaned_deals)} total sales deals.",
+                    "",
+                    "Sample Unique Deal Names:"
+                ]
+                for d in sorted(list(deal_names))[:10]:
+                    lines.append(f"  - {d}")
+                
+                return {
+                    "answer": "\n".join(lines),
                     "is_clarification": False,
                     "caveats": all_caveats,
                     "action": None
                 }
 
-        # 📄 2. EXPORT CSV / PDF INTENT
+        # 🧮 2. MATHEMATICAL CALCULATION DETECTOR
+        math_keywords = ["calculate", "math", "add", "multiply", "divide", "subtract", "sum of", "percent of", "% of", "plus", "minus", "times"]
+        is_math_query = any(k in q_lower for k in math_keywords) or re.search(r'^\s*[\d\(\)\.\s\+\-\*\/\%]+\s*$', q_lower)
+        if is_math_query:
+            expr_candidate = re.sub(r'(?i)(calculate|what is|compute|eval|math|the|sum of|\% of|of)', '', q_raw).strip()
+            math_result = self.safe_eval_math(expr_candidate) or self.safe_eval_math(q_raw)
+            if math_result:
+                return {
+                    "answer": f"Calculation Result:\n\n{math_result}",
+                    "is_clarification": False,
+                    "caveats": all_caveats,
+                    "action": None
+                }
+
+        # 📄 3. EXPORT CSV / PDF INTENT
         is_export_csv = any(k in q_lower for k in ["export csv", "download csv", "generate csv", "csv report", "save csv"])
         is_export_pdf = any(k in q_lower for k in ["export pdf", "download pdf", "generate pdf", "pdf report", "save pdf", "print pdf"])
 
         if is_export_csv or is_export_pdf:
             export_type = "CSV" if is_export_csv else "PDF"
             return {
-                "answer": f"📄 **{export_type} Export Request:**\n\nI have generated your requested **{export_type} report** based on the current live deals and work orders dataset. Click below to download or print your file immediately.",
+                "answer": f"{export_type} Export Request:\n\nI have generated your requested {export_type} report based on the current live deals and work orders dataset. Downloading file immediately.",
                 "is_clarification": False,
                 "caveats": all_caveats,
                 "action": "export",
                 "action_payload": {"type": export_type.lower()}
             }
 
-        # 🛡️ 3. SECURITY & WAF AUDIT INTENT
+        # 🛡️ 4. SECURITY & WAF AUDIT INTENT
         if any(k in q_lower for k in ["security", "waf", "attack", "audit", "log", "blocked", "checksum", "tamper", "owasp"]):
             audit_logs = self.security_guard.get_audit_logs() if self.security_guard else []
             blocked_count = sum(1 for log in audit_logs if "BLOCKED" in log.get("event_type", ""))
             
             lines = [
-                "🛡️ **OWASP Cybersecurity & WAF Audit Status:**\n",
-                f"• **WAF Protection:** Active & Enforcing (OWASP Top 10 + Prompt Injection Guard)",
-                f"• **IP Rate Limiting:** Active Window",
-                f"• **Total Audit Events Logged:** {len(audit_logs)} security logs recorded.",
-                f"• **Blocked Malicious Attacks:** {blocked_count} attack attempts thwarted.\n"
+                "OWASP Cybersecurity & WAF Audit Status:\n",
+                f"- WAF Protection: Active & Enforcing (OWASP Top 10 + Prompt Injection Guard)",
+                f"- IP Rate Limiting: Active Window",
+                f"- Total Audit Events Logged: {len(audit_logs)} security logs recorded.",
+                f"- Blocked Malicious Attacks: {blocked_count} attack attempts thwarted.\n"
             ]
             if audit_logs:
-                lines.append("📋 **Recent Security Log Events:**")
+                lines.append("Recent Security Log Events:")
                 for log in audit_logs[-3:]:
-                    lines.append(f"  - `[{log['timestamp']}]` **{log['event_type']}** — {log['details']}")
+                    lines.append(f"  - [{log['timestamp']}] {log['event_type']} - {log['details']}")
             else:
-                lines.append("✅ No security violations or prompt injection attacks detected.")
+                lines.append("No security violations or prompt injection attacks detected.")
 
             return {
                 "answer": "\n".join(lines),
@@ -118,7 +158,7 @@ class BIQueryEngine:
                 "action_payload": {"view": "view-security"}
             }
 
-        # 🌐 4. UNIVERSAL SUMMARY INTENT
+        # 🌐 5. UNIVERSAL SUMMARY INTENT
         if any(k in q_lower for k in ["everything", "full summary", "summarize", "all data", "whole application", "overview", "complete info", "briefing"]):
             total_pipeline_val = sum(d["value"] for d in cleaned_deals)
             won_deals = [d for d in cleaned_deals if d["deal_status"].lower() == "won" or "won" in d["stage"].lower() or "work order received" in d["stage"].lower()]
@@ -131,16 +171,16 @@ class BIQueryEngine:
             total_ops_val = sum(o["cost"] for o in cleaned_orders)
 
             lines = [
-                "🚀 **Universal Cross-Application Intelligence Summary:**\n",
-                "📈 **1. Commercial Sales Pipeline:**",
-                f"• **Total Pipeline Value:** ₹{total_pipeline_val:,.2f} across {len(cleaned_deals)} tracked deals.",
-                f"• **Closed-Won Revenue:** ₹{closed_won_val:,.2f} ({len(won_deals)} Won deals).",
-                f"• **Active Proposals:** ₹{proposal_val:,.2f} ({len(proposals)} Proposals/Negotiations).\n",
-                "🛸 **2. Operations & Flight Work Orders:**",
-                f"• **Total Tracked Work Orders:** {len(cleaned_orders)} projects (₹{total_ops_val:,.2f} contract value).",
-                f"• **Project Execution:** {len(completed_orders)} completed, {len(active_orders)} active/ongoing.\n",
-                "🛡️ **3. System Controls:**",
-                f"• **Data Resilience:** {len(all_caveats)} quality caveat(s) monitored."
+                "Universal Cross-Application Intelligence Summary:\n",
+                "1. Commercial Sales Pipeline:",
+                f"- Total Pipeline Value: Rs. {total_pipeline_val:,.2f} across {len(cleaned_deals)} tracked deals.",
+                f"- Closed-Won Revenue: Rs. {closed_won_val:,.2f} ({len(won_deals)} Won deals).",
+                f"- Active Proposals: Rs. {proposal_val:,.2f} ({len(proposals)} Proposals/Negotiations).\n",
+                "2. Operations & Flight Work Orders:",
+                f"- Total Tracked Work Orders: {len(cleaned_orders)} projects (Rs. {total_ops_val:,.2f} contract value).",
+                f"- Project Execution: {len(completed_orders)} completed, {len(active_orders)} active/ongoing.\n",
+                "3. System Controls:",
+                f"- Data Resilience: {len(all_caveats)} quality caveat(s) monitored."
             ]
 
             return {
@@ -150,24 +190,21 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # 🔍 5. DETAILED ENTITY / DEAL / SECTOR / STATUS FILTER & SEARCH
-        # Detect sector
+        # 🔍 6. DETAILED ENTITY / DEAL / SECTOR / STATUS FILTER & SEARCH
         detected_sector = None
         for sector_key in ["energy", "powerline", "renewables", "mining", "infrastructure", "construction", "railways", "agriculture", "dsp", "tender"]:
             if sector_key in q_lower:
                 detected_sector = self.resilience.normalize_sector(sector_key)
                 break
 
-        # Detect status
         detected_status = None
         if "won" in q_lower or "closed" in q_lower or "received" in q_lower:
             detected_status = "Won"
-        elif "negotiation" in q_lower or "proposal" in q_lower or "active" in q_lower:
+        elif "negotiation" in q_lower or "proposal" in q_lower:
             detected_status = "In Negotiation"
         elif "lost" in q_lower:
             detected_status = "Lost"
 
-        # Detect client / dealer / account name or specific search token
         entity_match = re.search(r'(company_?\d+|wocompany_?\d+|sdpldeal-?\d+|owner_?\d+|alias_\d+)', q_lower)
         target_entity = entity_match.group(0).upper() if entity_match else None
         
@@ -179,12 +216,10 @@ class BIQueryEngine:
                     target_entity = clean_w
                     break
 
-        # Check if query mentions deals, work orders, pipeline, or specific search term
         is_deal_search = any(k in q_lower for k in ["deal", "pipeline", "sales", "revenue", "won", "stage", "mining", "energy", "infra", "dealer", "client", "company", "owner"]) or target_entity or detected_sector or detected_status
         is_order_search = any(k in q_lower for k in ["order", "flight", "operation", "execution", "project", "work order"])
 
         if is_deal_search or is_order_search:
-            # Filter deals
             matching_deals = cleaned_deals
             if detected_sector:
                 matching_deals = [d for d in matching_deals if d["sector"] == detected_sector]
@@ -201,7 +236,6 @@ class BIQueryEngine:
                     or (digit_str and digit_str in d["client"])
                 ]
 
-            # Filter orders
             matching_orders = cleaned_orders
             if detected_sector:
                 matching_orders = [o for o in matching_orders if o["sector"] == detected_sector]
@@ -217,31 +251,30 @@ class BIQueryEngine:
             lines = []
 
             filter_desc = []
-            if detected_sector: filter_desc.append(f"Sector: **{detected_sector}**")
-            if detected_status: filter_desc.append(f"Status: **{detected_status}**")
-            if target_entity: filter_desc.append(f"Client/Entity: **{target_entity}**")
+            if detected_sector: filter_desc.append(f"Sector: {detected_sector}")
+            if detected_status: filter_desc.append(f"Status: {detected_status}")
+            if target_entity: filter_desc.append(f"Client/Entity: {target_entity}")
             
             filter_str = " | ".join(filter_desc) if filter_desc else "Search Results"
 
-            lines.append(f"🔍 **Monday.com Live Query Results ({filter_str}):**\n")
-            lines.append(f"• **Found {len(matching_deals)} matching deal(s)** totaling **₹{total_val:,.2f}**.")
+            lines.append(f"Monday.com Live Query Results ({filter_str}):\n")
+            lines.append(f"- Found {len(matching_deals)} matching deal(s) totaling Rs. {total_val:,.2f}.")
             if matching_orders:
-                lines.append(f"• **Found {len(matching_orders)} matching work order(s)**.")
+                lines.append(f"- Found {len(matching_orders)} matching work order(s).")
             lines.append("")
 
             if matching_deals:
-                lines.append("📋 **Matching Deals List:**")
+                lines.append("Matching Deals List:")
                 for d in matching_deals[:6]:
-                    lines.append(f"  - **{d['deal_name']}** (`{d['client']}`) | Sector: *{d['sector']}* | Status: **{d['deal_status']}** | Value: **₹{d['value']:,.2f}** | Owner: `{d['owner']}`")
+                    lines.append(f"  - {d['deal_name']} ({d['client']}) | Sector: {d['sector']} | Status: {d['deal_status']} | Value: Rs. {d['value']:,.2f} | Owner: {d['owner']}")
             
             if matching_orders:
-                lines.append("\n🛸 **Matching Work Orders:**")
+                lines.append("\nMatching Work Orders:")
                 for o in matching_orders[:4]:
-                    lines.append(f"  - **{o['project_name']}** (`{o['work_order_id']}`) | Status: **{o['status']}** | Value: **₹{o['cost']:,.2f}**")
+                    lines.append(f"  - {o['project_name']} ({o['work_order_id']}) | Status: {o['status']} | Value: Rs. {o['cost']:,.2f}")
 
-            lines.append("\n💡 *I have automatically updated and redirected your Monday.com Board table filters to show these exact records!*")
+            lines.append("\nRedirecting table filters to show these records.")
 
-            # Determine redirect action and filter parameters
             search_query_param = target_entity if target_entity else ("mining" if "mining" in q_lower else "")
             
             return {
@@ -257,10 +290,9 @@ class BIQueryEngine:
                 }
             }
 
-        # ❓ 6. OUT-OF-SCOPE / PROFESSIONAL UNKNOWN FALLBACK
-        # If user asks something totally unrelated to the app (e.g. weather, sports, general knowledge)
+        # ❓ 7. OUT-OF-SCOPE / PROFESSIONAL UNKNOWN FALLBACK
         return {
-            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated **Skylark Business Intelligence Agent**, specialized strictly in answering queries about your **Monday.com Sales Deals Funnel**, **Work Orders**, **Client/Dealer records**, **Revenue analytics**, and **Security audit logs**.\n\nPlease ask me about pipeline revenues, client codes (e.g., `COMPANY089`), sector analytics, mathematical calculations, or export options!",
+            "answer": "Sorry! I do not have information regarding that in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.\n\nPlease ask me about pipeline revenues, client codes, sector analytics, project counts, mathematical calculations, or export options!",
             "is_clarification": False,
             "caveats": all_caveats,
             "action": None
