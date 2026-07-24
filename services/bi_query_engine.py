@@ -1,10 +1,10 @@
 """
 Universal Omniscient Business Intelligence Engine
 Handles:
-- Explicit file export triggers (e.g. 'export pdf', 'generate csv', 'download word')
-- Live Monday.com updates questions (explains 15s auto-sync loop & webhook architecture)
-- System architecture, OWASP WAF, SHA-256 Auth, and User Guide queries
-- Math calculations & exact currency normalization
+- PDF / CSV / Word / TXT file export triggers
+- Dynamic entity sorting / argmax matching offline fallback (e.g. 'most billed amount', 'highest cost')
+- Live Monday.com updates, security architecture, and guide questions
+- Math calculation & exact currency normalization
 """
 
 import os
@@ -70,7 +70,6 @@ class BIQueryEngine:
         q_normalized = self.normalize_text(q_raw)
 
         # 🔄 1. MONDAY.COM LIVE UPDATE & AUTO-SYNC INTENT HANDLER
-        # Matches queries like "will this application update if i update any files in the monday.com?"
         is_sync_query = any(k in q_lower for k in ["update", "sync", "refresh", "change", "add file", "new group", "new board"]) and ("monday" in q_lower or "file" in q_lower or "application" in q_lower) and not any(k in q_lower for k in ["export", "download", "pdf", "csv", "word", "doc"])
 
         if is_sync_query:
@@ -91,7 +90,7 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # 📄 2. EXPLICIT FILE EXPORT INTENT HANDLER (Requires explicit action verb e.g. "export pdf", "download csv", "create pdf of sakura")
+        # 📄 2. EXPLICIT FILE EXPORT INTENT HANDLER
         is_explicit_export = any(k in q_lower for k in ["export", "download", "create pdf", "make pdf", "save pdf", "generate pdf", "create csv", "make csv", "download csv", "create word", "make word"])
 
         if is_explicit_export:
@@ -180,9 +179,10 @@ class BIQueryEngine:
                     "Analyze the user's question with extreme precision across all letters, symbols, numbers, and system architecture.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. MONDAY.COM SYNC QUESTIONS: Explain that the app syncs live every 15 seconds automatically.\n"
-                    "3. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
-                    "4. Keep responses clean, precise, and professional."
+                    "2. DATA ARGMAX & MAX FINDINGS (e.g. 'which deal has most billed amount'): Search all records, sort them numerically (using 'cost' for work orders and 'value' for deals), find the single item with the absolute highest number, and display its full details. Do not output irrelevant items.\n"
+                    "3. MONDAY.COM SYNC QUESTIONS: Explain that the app syncs live every 15 seconds automatically.\n"
+                    "4. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
+                    "5. Keep responses clean, precise, and professional."
                 )
 
                 prompt = f"System Knowledge & Data Context:\n{json.dumps(data_context, indent=2)}\n\nUser Question: {q_raw}"
@@ -207,7 +207,38 @@ class BIQueryEngine:
             except Exception as ai_err:
                 print(f"[Gemini AI Error]: {ai_err}")
 
-        # 🧠 5. UNIVERSAL NUMERIC & ENTITY MATCHING ENGINE (Offline Fallback)
+        # 🧠 5. OFFLINE FALLBACK - HIGHEST / ARGMAX ENGINE (Handles 'most billed', 'highest cost')
+        is_argmax_query = any(w in q_lower for w in ["most", "highest", "maximum", "largest", "biggest"])
+        
+        if is_argmax_query:
+            is_work_order_focus = any(w in q_lower for w in ["billed", "work", "order", "project", "flight"])
+            is_deal_focus = any(w in q_lower for w in ["deal", "value", "pipeline", "won", "sales"])
+
+            if is_work_order_focus and cleaned_orders:
+                max_order = max(cleaned_orders, key=lambda o: float(o.get("cost", 0)))
+                lines = [
+                    "Offline Fallback: Highest Billed Work Order found:\n",
+                    f"- Project Name: {max_order.get('project_name')}",
+                    f"- Work Order ID: {max_order.get('work_order_id')}",
+                    f"- Client Code: {max_order.get('client')}",
+                    f"- Status: {max_order.get('status')}",
+                    f"- Billed Amount: Rs. {float(max_order.get('cost', 0)):,.2f}"
+                ]
+                return {"answer": "\n".join(lines), "is_clarification": False, "caveats": all_caveats, "action": None}
+
+            elif is_deal_focus and cleaned_deals:
+                max_deal = max(cleaned_deals, key=lambda d: float(d.get("value", 0)))
+                lines = [
+                    "Offline Fallback: Highest Pipeline Value Deal found:\n",
+                    f"- Deal Name: {max_deal.get('deal_name')}",
+                    f"- Client Code: {max_deal.get('client')}",
+                    f"- Sector: {max_deal.get('sector')}",
+                    f"- Status: {max_deal.get('deal_status')}",
+                    f"- Deal Value: Rs. {float(max_deal.get('value', 0)):,.2f}"
+                ]
+                return {"answer": "\n".join(lines), "is_clarification": False, "caveats": all_caveats, "action": None}
+
+        # 🧠 6. UNIVERSAL NUMERIC & ENTITY MATCHING ENGINE (Offline Fallback)
         extracted_numbers = self.extract_exact_numbers(q_raw)
         
         matching_orders = []
@@ -253,7 +284,7 @@ class BIQueryEngine:
                 "action": None
             }
 
-        # ❓ 6. PROFESSIONAL OUT-OF-SCOPE FALLBACK
+        # ❓ 7. PROFESSIONAL OUT-OF-SCOPE FALLBACK
         return {
             "answer": f"Sorry! I could not find any active deals or work orders matching '{q_raw}' in the application.\n\nI am your dedicated Skylark Business Intelligence Agent, specialized strictly in answering queries about your Monday.com Sales Deals Funnel, Work Orders, Client/Dealer records, Revenue analytics, and Security audit logs.",
             "is_clarification": False,
