@@ -551,20 +551,52 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnBoards = document.getElementById('btn-nav-boards');
       if (btnBoards) btnBoards.click();
 
+      // Find the corresponding board from discoveredBoards
+      let targetBoard = null;
       if (filterType === 'work-orders') {
-        activeGroupTitle = 'Work_Order_Tracker_Data.csv';
+        targetBoard = discoveredBoards.find(b => b.name.toLowerCase().includes('work') || b.name.toLowerCase().includes('order'));
+      } else {
+        targetBoard = discoveredBoards.find(b => b.name.toLowerCase().includes('deal') || b.name.toLowerCase().includes('funnel'));
+      }
+
+      if (targetBoard) {
+        activeBoardId = targetBoard.id;
+        if (boardSelect) boardSelect.value = targetBoard.id;
+        updateCurrentBoardState();
+      }
+
+      // Determine active group name from board items
+      const groupsList = Array.from(new Set(currentBoardItems.map(item => item.group_title || 'Main Group')));
+      
+      if (filterType === 'work-orders') {
+        // Find Work Order CSV/group name
+        const woGroup = groupsList.find(g => g.toLowerCase().includes('work') || g.toLowerCase().includes('order')) || groupsList[0];
+        activeGroupTitle = woGroup;
         renderGroupTabs();
         populateDynamicFilterDropdowns();
         resetAllFilters();
       } else {
-        activeGroupTitle = 'Deal_funnel_Data.csv';
+        const dealGroup = groupsList.find(g => g.toLowerCase().includes('deal') || g.toLowerCase().includes('funnel')) || groupsList[0];
+        activeGroupTitle = dealGroup;
         renderGroupTabs();
         populateDynamicFilterDropdowns();
         if (filterType === 'won-deals') {
-          if (filterStatus) filterStatus.value = 'Won';
+          resetAllFilters();
+          if (filterStatus) {
+            filterStatus.value = 'Won';
+            // Trigger change event to apply
+            filterStatus.dispatchEvent(new Event('change'));
+          }
           applyTableFilters('Closed Won Revenue');
         } else if (filterType === 'negotiation-deals') {
-          if (filterStage) filterStage.value = 'F. Negotiations';
+          resetAllFilters();
+          if (filterStage) {
+            // Find stage containing Negotiations
+            const options = Array.from(filterStage.options).map(o => o.value);
+            const negoStage = options.find(o => o.toLowerCase().includes('negotiation') || o.toLowerCase().includes('proposal')) || 'ALL';
+            filterStage.value = negoStage;
+            filterStage.dispatchEvent(new Event('change'));
+          }
           applyTableFilters('Active Proposals & Negotiations');
         } else {
           resetAllFilters();
