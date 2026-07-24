@@ -2,9 +2,9 @@
 Universal Omniscient Business Intelligence Engine
 Handles:
 - PDF / CSV / Word / TXT file export triggers
-- Dynamic entity sorting / argmax matching offline fallback (e.g. 'most billed amount', 'highest cost')
 - Live Monday.com updates, security architecture, and guide questions
 - Math calculation & exact currency normalization
+- Offline fallback with dictionary-aware fuzzy matching
 """
 
 import os
@@ -176,10 +176,11 @@ class BIQueryEngine:
 
                 system_instruction = (
                     "You are the official Skylark Drones Omniscient Business Intelligence AI Assistant.\n"
-                    "Analyze the user's question with extreme precision across all letters, symbols, numbers, and system architecture.\n"
+                    "You are equipped with a complete English dictionary and natural language processing capabilities. "
+                    "Analyze the user's question with extreme precision across all spelling variations, words, synonyms, numbers, and system architecture.\n"
                     "Rules:\n"
                     "1. DO NOT use markdown bold asterisks (**) or italic symbols (*) in your response. Keep all output in clean plain text.\n"
-                    "2. DATA ARGMAX & MAX FINDINGS (e.g. 'which deal has most billed amount'): Search all records, sort them numerically (using 'cost' for work orders and 'value' for deals), find the single item with the absolute highest number, and display its full details. Do not output irrelevant items.\n"
+                    "2. DATA ARGMAX & MAX FINDINGS (e.g. 'which deal has most billed amount'): Search all records, sort them numerically (using 'cost' for work orders and 'value' for deals), find the single item with the absolute highest number, and display its full details.\n"
                     "3. MONDAY.COM SYNC QUESTIONS: Explain that the app syncs live every 15 seconds automatically.\n"
                     "4. DATA LOOKUPS & NUMBERS: Search all fields and records in sales_deals_data and work_orders_data.\n"
                     "5. Keep responses clean, precise, and professional."
